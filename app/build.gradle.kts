@@ -8,6 +8,15 @@ android {
     namespace = "com.example.lifeworkbench"
     compileSdk = 34
 
+    // 固定调试签名：每次打包都用同一个签名，这样新版本才能直接覆盖安装旧版本，不用卸载
+    signingConfigs {
+        getByName("debug") {
+            storeFile = file("debug.keystore")
+            storePassword = "android"
+            keyAlias = "androiddebugkey"
+            keyPassword = "android"
+        }
+    }
     defaultConfig {
         applicationId = "com.example.lifeworkbench"
         minSdk = 24

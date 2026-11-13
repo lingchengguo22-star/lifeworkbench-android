@@ -55,4 +55,7 @@ dependencies {
     implementation("androidx.room:room-runtime:$room_version")
     implementation("androidx.room:room-ktx:$room_version")
     ksp("androidx.room:room-compiler:$room_version")
+
+    // 单元测试：TaskStatus 状态映射（V1.1 阶段 0）
+    testImplementation("junit:junit:4.13.2")
 }

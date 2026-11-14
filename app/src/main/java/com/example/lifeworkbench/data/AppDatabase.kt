@@ -11,7 +11,7 @@ import com.example.lifeworkbench.data.entities.*
     FitnessEntity::class, 
     GameEntity::class, 
     SleepEntity::class
-], version = 1, exportSchema = false)
+], version = 1, exportSchema = true)
 abstract class AppDatabase : RoomDatabase() {
     abstract fun taskDao(): TaskDao
 }

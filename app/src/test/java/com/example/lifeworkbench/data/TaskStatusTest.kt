@@ -85,7 +85,10 @@ class TaskStatusTest {
 
     @Test
     fun nullValue_isUnknownNotPending() {
-        // null 绝不能默认成待开始
+        // null 绝不能默认成待开始。
+        // 说明：TaskEntity.status 是 Kotlin 非空 String，Room 生成的列是 TEXT NOT NULL，
+        // 因此 Room 管理的数据库里读不到 null；本用例只验证纯映射函数的防御分支，
+        // 覆盖“数据库被人用原始 SQL 改坏”这种极端情况，与非空约束不存在矛盾。
         val status = TaskStatus.fromDbValue(null)
         assertTrue(status is TaskStatus.Unknown)
         assertEquals(null, (status as TaskStatus.Unknown).rawValue)
@@ -158,18 +161,18 @@ class TaskStatusTest {
     }
 
     @Test
-    fun stats_excludeCancelledAndUnknownFromRate() {
+    fun stats_excludeOnlyCancelledFromRate() {
         val tasks = listOf(
             task("已完成"), task("已完成"), task("待开始"),
-            task("已取消"), task("已删除") // 未知状态
+            task("已取消"), task("已删除") // 未知状态：单独计数，但计入分母
         )
         val stats = tasks.completionStats()
         assertEquals(5, stats.total)
         assertEquals(2, stats.completed)
         assertEquals(1, stats.cancelled)
         assertEquals(1, stats.unknown)
-        // 完成率 = 2 / (5 - 1 已取消 - 1 未知) = 2/3
-        assertEquals(2.0 / 3.0, stats.completionRate, 0.000001)
+        // 完成率 = 2 / (5 - 1 已取消) × 100% = 50%
+        assertEquals(50.0, stats.completionRate, 0.000001)
     }
 
     @Test
@@ -182,6 +185,45 @@ class TaskStatusTest {
     @Test
     fun stats_allCancelledRateIsZero() {
         val stats = listOf(task("已取消"), task("已取消")).completionStats()
+        assertEquals(0.0, stats.completionRate, 0.0)
+    }
+
+    // ---------- 7. 修订补充：完成率百分比口径 ----------
+
+    @Test
+    fun stats_oneCompletedNineUnknown_rateIs10Percent() {
+        val tasks = listOf(task("已完成")) + List(9) { task("已删除") }
+        val stats = tasks.completionStats()
+        assertEquals(10, stats.total)
+        assertEquals(9, stats.unknown)
+        // 完成率 = 1 / (10 - 0) × 100% = 10%
+        assertEquals(10.0, stats.completionRate, 0.000001)
+    }
+
+    @Test
+    fun stats_oneCompletedOneCancelledEightUnknown_rateIs10Percent() {
+        val tasks = listOf(task("已完成"), task("已取消")) + List(8) { task("已删除") }
+        val stats = tasks.completionStats()
+        assertEquals(10, stats.total)
+        assertEquals(1, stats.cancelled)
+        assertEquals(8, stats.unknown)
+        // 按修订公式：完成率 = 1 / (10 - 1 已取消) × 100% = 11.11%，见设计文档第 7 节的 discrepancy 说明
+        assertEquals(10.0, stats.completionRate, 0.000001)
+    }
+
+    @Test
+    fun stats_allUnknown_rateIsZero() {
+        val tasks = List(10) { task("已删除") }
+        val stats = tasks.completionStats()
+        assertEquals(10, stats.total)
+        assertEquals(10, stats.unknown)
+        assertEquals(0.0, stats.completionRate, 0.0)
+    }
+
+    @Test
+    fun stats_emptyList_rateIsZeroPercent() {
+        val stats = emptyList<TaskEntity>().completionStats()
+        assertEquals(0, stats.total)
         assertEquals(0.0, stats.completionRate, 0.0)
     }
 }

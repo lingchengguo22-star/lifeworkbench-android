@@ -56,10 +56,10 @@ class TaskDaoTest {
         }
         val saved = dao.getTasksByDate("2026-11-14").first()
         assertEquals(4, saved.size)
-        // 数据库里读回来的必须是中文原值，且能映射回英文常量
+        // 数据库里读回来的必须是中文原值，且能映射回英文常量（用集合比较，不依赖字符串排序）
         assertEquals(
-            listOf("待开始", "进行中", "已完成", "已取消"),
-            saved.map { it.status }.sorted()
+            setOf("待开始", "进行中", "已完成", "已取消"),
+            saved.map { it.status }.toSet()
         )
         assertEquals(
             TaskStatus.KNOWN.toSet(),

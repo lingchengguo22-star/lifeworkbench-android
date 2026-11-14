@@ -61,14 +61,15 @@ interface TaskDao {
     fun getTasksByDateAndStatus(date: String, status: String): Flow<List<TaskEntity>>
 
     // V1.1 阶段 0：状态修改持久化（仅增 DAO 方法，不改表结构、不升级数据库版本）
+    // V1.1 阶段 1 修复：返回实际影响行数，调用方据此识别“目标行不存在”（0 行 = 不存在）。
     @Update
-    suspend fun updateTask(task: TaskEntity)
+    suspend fun updateTask(task: TaskEntity): Int
 
     @Delete
-    suspend fun deleteTask(task: TaskEntity)
+    suspend fun deleteTask(task: TaskEntity): Int
 
     @Query("DELETE FROM tasks WHERE id = :id")
-    suspend fun deleteTaskById(id: Int)
+    suspend fun deleteTaskById(id: Int): Int
 
     @Query("SELECT COUNT(*) FROM tasks WHERE planDate = :date")
     suspend fun countTasksByDate(date: String): Int

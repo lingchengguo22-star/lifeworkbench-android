@@ -36,11 +36,12 @@ sealed class TaskError {
  */
 class TaskRepository(private val dao: TaskDao) {
 
-    /** 创建任务：先校验，通过后写入，返回新任务的行 ID。 */
+    /** 创建任务：先 trim 标题，再校验，通过后保存 trim 后的标题，返回新任务的行 ID。 */
     suspend fun createTask(task: TaskEntity): TaskResult<Long> {
-        val errors = TaskValidator.validate(task)
+        val normalized = task.copy(title = task.title.trim())
+        val errors = TaskValidator.validate(normalized)
         if (errors.isNotEmpty()) return TaskResult.Failure(TaskError.ValidationFailed(errors))
-        return runCatching { TaskResult.Success(dao.insertTask(task)) }
+        return runCatching { TaskResult.Success(dao.insertTask(normalized)) }
             .getOrElse { TaskResult.Failure(TaskError.Database(it)) }
     }
 
@@ -65,29 +66,45 @@ class TaskRepository(private val dao: TaskDao) {
         return dao.getTasksByDateAndStatus(date, dbValue)
     }
 
-    /** 更新任务：先校验，通过后写入。 */
+    /**
+     * 更新任务：先 trim 标题；先读原任务——不存在返回 NotFound；
+     * 再按编辑规则校验（未改分类时历史分类原样保留，改了分类按新建校验），不通过不写入；
+     * 写入后按实际影响行数判定：> 0 成功，= 0 返回 NotFound。
+     */
     suspend fun updateTask(task: TaskEntity): TaskResult<Unit> {
-        val errors = TaskValidator.validate(task)
-        if (errors.isNotEmpty()) return TaskResult.Failure(TaskError.ValidationFailed(errors))
+        val normalized = task.copy(title = task.title.trim())
         return runCatching {
-            dao.updateTask(task)
-            TaskResult.Success(Unit)
+            val existing = dao.getTaskById(normalized.id)
+            if (existing == null) {
+                TaskResult.Failure(TaskError.NotFound(normalized.id))
+            } else {
+                val errors = TaskValidator.validateForUpdate(normalized, existing.category)
+                if (errors.isNotEmpty()) {
+                    TaskResult.Failure(TaskError.ValidationFailed(errors))
+                } else {
+                    val rows = dao.updateTask(normalized)
+                    if (rows > 0) TaskResult.Success(Unit)
+                    else TaskResult.Failure(TaskError.NotFound(normalized.id))
+                }
+            }
         }.getOrElse { TaskResult.Failure(TaskError.Database(it)) }
     }
 
-    /** 删除任务（按实体）。 */
+    /** 删除任务（按实体）：影响行数 > 0 成功，= 0 返回 NotFound。 */
     suspend fun deleteTask(task: TaskEntity): TaskResult<Unit> {
         return runCatching {
-            dao.deleteTask(task)
-            TaskResult.Success(Unit)
+            val rows = dao.deleteTask(task)
+            if (rows > 0) TaskResult.Success(Unit)
+            else TaskResult.Failure(TaskError.NotFound(task.id))
         }.getOrElse { TaskResult.Failure(TaskError.Database(it)) }
     }
 
-    /** 删除任务（按 ID）。 */
+    /** 删除任务（按 ID）：影响行数 > 0 成功，= 0 返回 NotFound。 */
     suspend fun deleteTaskById(id: Int): TaskResult<Unit> {
         return runCatching {
-            dao.deleteTaskById(id)
-            TaskResult.Success(Unit)
+            val rows = dao.deleteTaskById(id)
+            if (rows > 0) TaskResult.Success(Unit)
+            else TaskResult.Failure(TaskError.NotFound(id))
         }.getOrElse { TaskResult.Failure(TaskError.Database(it)) }
     }
 

@@ -107,4 +107,114 @@ class TaskDaoTest {
         // 修订公式：1 / (10 - 1) × 100% = 11.11%，见设计文档第 7 节的 discrepancy 说明
         assertEquals(100.0 / 9.0, stats.completionRate, 0.000001)
     }
+
+    // ---- V1.1 阶段 1 新增：完善后的 TaskDao 覆盖 ----
+
+    @Test
+    fun getTaskById_returnsInsertedTask() = runBlocking {
+        val dao = db.taskDao()
+        val id = dao.insertTask(task("按ID查", "待开始").copy(startMinute = 540, endMinute = 600))
+        assertTrue(id > 0)
+        val found = dao.getTaskById(id.toInt())
+        assertEquals("按ID查", found?.title)
+        assertEquals("待开始", found?.status)
+        assertEquals(540, found?.startMinute)
+        assertEquals(600, found?.endMinute)
+        assertEquals(null, dao.getTaskById(999999))
+    }
+
+    @Test
+    fun getTasksByDateRange_returnsOnlyInRange() = runBlocking {
+        val dao = db.taskDao()
+        dao.insertTask(task("11-13", "待开始", "2026-11-13"))
+        dao.insertTask(task("11-14", "待开始", "2026-11-14"))
+        dao.insertTask(task("11-15", "待开始", "2026-11-15"))
+        dao.insertTask(task("11-16", "待开始", "2026-11-16"))
+        val ranged = dao.getTasksByDateRange("2026-11-14", "2026-11-15").first()
+        assertEquals(listOf("11-14", "11-15"), ranged.map { it.title })
+        // 起止日期均包含在内；范围外不返回
+        assertEquals(0, dao.getTasksByDateRange("2026-11-17", "2026-11-18").first().size)
+    }
+
+    @Test
+    fun getTasksByDateAndStatus_filtersByStatus() = runBlocking {
+        val dao = db.taskDao()
+        dao.insertTask(task("待办", "待开始"))
+        dao.insertTask(task("做完", "已完成"))
+        dao.insertTask(task("取消", "已取消"))
+        // 状态值必须用 TaskStatus 统一定义转换，测试里也不手写中文
+        val done = dao.getTasksByDateAndStatus("2026-11-14", TaskStatus.Completed.toDbValue()!!).first()
+        assertEquals(listOf("做完"), done.map { it.title })
+        val pending = dao.getTasksByDateAndStatus("2026-11-14", TaskStatus.Pending.toDbValue()!!).first()
+        assertEquals(listOf("待办"), pending.map { it.title })
+    }
+
+    @Test
+    fun deleteTask_removesRow() = runBlocking {
+        val dao = db.taskDao()
+        val id = dao.insertTask(task("要删", "待开始"))
+        dao.insertTask(task("保留", "待开始"))
+        val saved = dao.getTaskById(id.toInt())!!
+        dao.deleteTask(saved)
+        assertEquals(null, dao.getTaskById(id.toInt()))
+        assertEquals(listOf("保留"), dao.getTasksByDate("2026-11-14").first().map { it.title })
+    }
+
+    @Test
+    fun deleteTaskById_removesRow() = runBlocking {
+        val dao = db.taskDao()
+        val id = dao.insertTask(task("按ID删", "待开始"))
+        dao.deleteTaskById(id.toInt())
+        assertEquals(null, dao.getTaskById(id.toInt()))
+        assertEquals(0, dao.countTasksByDate("2026-11-14"))
+    }
+
+    @Test
+    fun countTasksByDate_countsOnlyThatDate() = runBlocking {
+        val dao = db.taskDao()
+        dao.insertTask(task("A", "待开始", "2026-11-14"))
+        dao.insertTask(task("B", "待开始", "2026-11-14"))
+        dao.insertTask(task("C", "待开始", "2026-11-15"))
+        assertEquals(2, dao.countTasksByDate("2026-11-14"))
+        assertEquals(1, dao.countTasksByDate("2026-11-15"))
+        assertEquals(0, dao.countTasksByDate("2026-11-16"))
+    }
+
+    @Test
+    fun countTasksByStatus_includesUnknownValues() = runBlocking {
+        val dao = db.taskDao()
+        dao.insertTask(task("待办", "待开始"))
+        dao.insertTask(task("做完", "已完成"))
+        dao.insertTask(task("未知", "已删除"))
+        dao.insertTask(task("取消", "已取消"))
+        val counts = dao.countTasksByStatus("2026-11-14")
+            .associate { it.status to it.count }
+        assertEquals(1, counts["待开始"])
+        assertEquals(1, counts["已完成"])
+        assertEquals(1, counts["已删除"])
+        assertEquals(1, counts["已取消"])
+        // 未知值不被丢弃：按原始值分组后仍能映射回 Unknown
+        val unknown = counts.keys.map { TaskStatus.fromDbValue(it) }.filterIsInstance<TaskStatus.Unknown>()
+        assertEquals(1, unknown.size)
+        assertEquals("已删除", unknown[0].rawValue)
+    }
+
+    @Test
+    fun getTasksByDate_ordersTimedFirstThenUntimed() = runBlocking {
+        val dao = db.taskDao()
+        dao.insertTask(task("无时间", "待开始").copy(startMinute = null))
+        dao.insertTask(task("下午", "待开始").copy(startMinute = 840, endMinute = 900))
+        dao.insertTask(task("上午", "待开始").copy(startMinute = 540, endMinute = 600))
+        val ordered = dao.getTasksByDate("2026-11-14").first().map { it.title }
+        assertEquals(listOf("上午", "下午", "无时间"), ordered)
+    }
+
+    @Test
+    fun getTasksByDate_flowReflectsInserts() = runBlocking {
+        val dao = db.taskDao()
+        assertEquals(0, dao.getTasksByDate("2026-11-14").first().size)
+        dao.insertTask(task("新任务", "待开始"))
+        val after = dao.getTasksByDate("2026-11-14").first()
+        assertEquals(listOf("新任务"), after.map { it.title })
+    }
 }

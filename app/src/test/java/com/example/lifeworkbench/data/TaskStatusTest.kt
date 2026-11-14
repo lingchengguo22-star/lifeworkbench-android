@@ -60,6 +60,18 @@ class TaskStatusTest {
         }
     }
 
+    @Test
+    fun knownList_containsFourNonNullStatuses() {
+        // 回归：KNOWN 必须恰好是 4 个已知状态，不能含 null（循环初始化曾导致第三个元素为 null）
+        val known = TaskStatus.KNOWN
+        assertEquals(4, known.size)
+        assertEquals(4, known.filterNotNull().size)
+        assertEquals(
+            setOf(TaskStatus.Pending, TaskStatus.InProgress, TaskStatus.Completed, TaskStatus.Cancelled),
+            known.toSet()
+        )
+    }
+
     // ---------- 2. 未知状态：绝不静默转换 ----------
 
     @Test

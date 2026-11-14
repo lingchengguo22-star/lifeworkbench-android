@@ -13,12 +13,14 @@ fun TaskEntity.taskStatus(): TaskStatus = TaskStatus.fromDbValue(status)
 fun TaskEntity.withStatus(newStatus: TaskStatus): TaskEntity =
     copy(status = newStatus.toDbValue() ?: status)
 
-/** 今日任务统计口径：完成率 = 已完成 /（总数 - 已取消 - 未知状态），未知状态单独计数，不参与完成率。 */
+/** 今日任务统计口径（修订版）：完成率 = 已完成 /（总任务数 - 已取消数量）× 100%。
+ * 未知状态单独统计，但计入分母（不从有效任务总数中排除）；分母为 0 时完成率为 0。 */
 data class TaskCompletionStats(
     val total: Int,
     val completed: Int,
     val cancelled: Int,
     val unknown: Int,
+    /** 完成率，百分比，范围 0.0 ~ 100.0。 */
     val completionRate: Double
 )
 
@@ -28,8 +30,8 @@ fun List<TaskEntity>.completionStats(): TaskCompletionStats {
     val completed = statuses.count { it == TaskStatus.Completed }
     val cancelled = statuses.count { it == TaskStatus.Cancelled }
     val unknown = statuses.count { it is TaskStatus.Unknown }
-    val denominator = size - cancelled - unknown
-    val rate = if (denominator > 0) completed.toDouble() / denominator else 0.0
+    val denominator = size - cancelled
+    val rate = if (denominator > 0) completed.toDouble() / denominator * 100.0 else 0.0
     return TaskCompletionStats(
         total = size,
         completed = completed,

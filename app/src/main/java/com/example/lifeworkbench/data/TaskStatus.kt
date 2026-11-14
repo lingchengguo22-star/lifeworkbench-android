@@ -16,7 +16,7 @@ package com.example.lifeworkbench.data
  * 2. 代码里只用英文常量名（Pending / InProgress / Completed / Cancelled），数据库值仍是中文。
  * 3. 未知状态绝不静默转换：任何不在已知 4 个值之内的数据库值（含 null、空串、带空格、
  *   英文、错别字）都原样保留在 [Unknown] 里，界面明确显示“未知状态（原值）”，
- *   统计时单独计数，不计入完成率分母，写回时原值不变。
+ *   统计时单独计数、计入完成率分母，写回时原值不变。
  * 4. 严格匹配：转换时不做 trim、不做大小写折叠、不做模糊匹配，避免把错误数据“修”成别的状态。
  */
 sealed class TaskStatus {

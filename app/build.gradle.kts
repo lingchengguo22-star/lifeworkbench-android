@@ -45,6 +45,13 @@ android {
             isIncludeAndroidResources = true
         }
     }
+    // 迁移测试用：把 Room 导出的 Schema（app/schemas）并入单元测试 assets，
+    // MigrationTestHelper 按数据库类名在 assets 里找 <版本>.json
+    sourceSets {
+        getByName("test") {
+            assets.srcDirs("$projectDir/schemas")
+        }
+    }
     // 测试失败时在控制台打印完整堆栈，便于定位
     tasks.withType<Test> {
         testLogging {
@@ -81,4 +88,6 @@ dependencies {
     testImplementation("org.robolectric:robolectric:4.11.1")
     testImplementation("androidx.test:core:1.5.0")
     testImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.7.3")
+    // 迁移测试：用真实旧 Schema 创建数据库并校验迁移
+    testImplementation("androidx.room:room-testing:2.6.0")
 }

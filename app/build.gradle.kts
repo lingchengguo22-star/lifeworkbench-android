@@ -37,6 +37,11 @@ android {
     kotlinOptions {
         jvmTarget = "17"
     }
+    testOptions {
+        unitTests {
+            isIncludeAndroidResources = true
+        }
+    }
 }
 
 dependencies {
@@ -62,9 +67,4 @@ dependencies {
     testImplementation("org.robolectric:robolectric:4.11.1")
     testImplementation("androidx.test:core:1.5.0")
     testImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.7.3")
-    testOptions {
-        unitTests {
-            isIncludeAndroidResources = true
-        }
-    }
 }

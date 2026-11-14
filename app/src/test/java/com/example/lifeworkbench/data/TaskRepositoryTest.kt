@@ -270,4 +270,57 @@ class TaskRepositoryTest {
         val got = repo.getTaskById(id) as TaskResult.Success
         assertEquals("复习功课", got.data.title)
     }
+
+    // ---- V1.1 阶段 1 最终修复：历史未知状态编辑兼容 ----
+
+    @Test
+    fun updateTask_unchangedUnknownStatus_titleOnly_succeedsAndPreserves() = runBlocking {
+        // 历史数据：未知状态经 DAO 直接写入（模拟旧版本数据）
+        val id = db.taskDao().insertTask(task(status = "已删除")).toInt()
+        val result = repo.updateTask(task(title = "改后标题", status = "已删除").copy(id = id))
+        assertTrue(result is TaskResult.Success)
+        val saved = db.taskDao().getTaskById(id)!!
+        assertEquals("改后标题", saved.title)
+        // 未知状态原样保留，未被自动转换
+        assertEquals("已删除", saved.status)
+        assertTrue(saved.taskStatus() is TaskStatus.Unknown)
+    }
+
+    @Test
+    fun updateTask_unchangedUnknownStatus_descriptionOnly_succeedsAndPreserves() = runBlocking {
+        val id = db.taskDao().insertTask(task(status = "已删除")).toInt()
+        val result = repo.updateTask(task(status = "已删除").copy(id = id, description = "新描述"))
+        assertTrue(result is TaskResult.Success)
+        val saved = db.taskDao().getTaskById(id)!!
+        assertEquals("新描述", saved.description)
+        assertEquals("已删除", saved.status)
+        assertTrue(saved.taskStatus() is TaskStatus.Unknown)
+    }
+
+    @Test
+    fun updateTask_unknownToLegalStatus_succeeds() = runBlocking {
+        val id = db.taskDao().insertTask(task(status = "已删除")).toInt()
+        val result = repo.updateTask(task(title = "学习任务", status = "已完成").copy(id = id))
+        assertTrue(result is TaskResult.Success)
+        val saved = db.taskDao().getTaskById(id)!!
+        assertEquals("已完成", saved.status)
+        assertEquals(TaskStatus.Completed, saved.taskStatus())
+    }
+
+    @Test
+    fun updateTask_unknownToIllegalStatus_rejected() = runBlocking {
+        val id = db.taskDao().insertTask(task(title = "原标题", status = "已删除")).toInt()
+        val result = repo.updateTask(task(title = "原标题", status = "作废").copy(id = id))
+        assertTrue(result is TaskResult.Failure)
+        val error = (result as TaskResult.Failure).error
+        assertTrue(error is TaskError.ValidationFailed)
+        assertEquals(
+            listOf(TaskValidationError.UNKNOWN_STATUS),
+            (error as TaskError.ValidationFailed).errors
+        )
+        // 非法更新未改变数据库原值
+        val saved = db.taskDao().getTaskById(id)!!
+        assertEquals("原标题", saved.title)
+        assertEquals("已删除", saved.status)
+    }
 }

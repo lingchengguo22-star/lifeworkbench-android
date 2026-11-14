@@ -4,6 +4,7 @@ import androidx.room.PrimaryKey
 import androidx.room.Dao
 import androidx.room.Query
 import androidx.room.Insert
+import androidx.room.Update
 import kotlinx.coroutines.flow.Flow
 
 @Entity(tableName = "tasks")
@@ -25,4 +26,8 @@ interface TaskDao {
     
     @Insert
     suspend fun insertTask(task: TaskEntity)
+
+    // V1.1 阶段 0：状态修改持久化（仅增 DAO 方法，不改表结构、不升级数据库版本）
+    @Update
+    suspend fun updateTask(task: TaskEntity)
 }

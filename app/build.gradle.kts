@@ -42,6 +42,12 @@ android {
             isIncludeAndroidResources = true
         }
     }
+    // 测试失败时在控制台打印完整堆栈，便于定位
+    tasks.withType<Test> {
+        testLogging {
+            exceptionFormat = TestExceptionFormat.FULL
+        }
+    }
 }
 
 dependencies {

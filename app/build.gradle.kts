@@ -58,4 +58,13 @@ dependencies {
 
     // 单元测试：TaskStatus 状态映射（V1.1 阶段 0）
     testImplementation("junit:junit:4.13.2")
+    // Room 内存数据库测试（Robolectric 真实 Android 项目环境）
+    testImplementation("org.robolectric:robolectric:4.11.1")
+    testImplementation("androidx.test:core:1.5.0")
+    testImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.7.3")
+    testOptions {
+        unitTests {
+            isIncludeAndroidResources = true
+        }
+    }
 }

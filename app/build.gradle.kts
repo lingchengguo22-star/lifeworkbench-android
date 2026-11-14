@@ -53,6 +53,11 @@ android {
     }
 }
 
+// Room Schema 导出位置（V1.1 阶段 1）：编译时把 Schema JSON 写到 app/schemas，供版本追溯与 Migration 测试使用
+ksp {
+    arg("room.schemaLocation", "$projectDir/schemas")
+}
+
 dependencies {
     implementation("androidx.core:core-ktx:1.12.0")
     implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.6.2")

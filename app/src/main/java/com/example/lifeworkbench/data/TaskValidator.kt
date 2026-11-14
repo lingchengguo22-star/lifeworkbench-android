@@ -35,17 +35,27 @@ object TaskValidator {
      * （旧名 validate 保留：全部既有调用均为新建路径。）
      */
     fun validate(task: TaskEntity): List<TaskValidationError> =
-        validateInternal(task, originalCategory = null)
+        validateInternal(task, originalCategory = null, originalStatus = null)
 
     /**
-     * 编辑任务校验：[originalCategory] 为数据库中原任务的分类。
-     * 未改分类（与原值相同，忽略首尾空格差异）时，历史分类原样保留，不做任何分类校验；
+     * 编辑任务校验：[originalCategory] 为数据库中原任务的分类，[originalStatus] 为原任务的状态。
+     * 分类：未改分类（与原值相同，忽略首尾空格差异）时，历史分类原样保留，不做任何分类校验；
      * 改了分类时，按新建同样校验（非空、长度、在 6 类合法值内）。
+     * 状态：未改状态（与原值严格字符串相等）时，历史状态原样保留，即使它是 Unknown 也不报错、
+     * 不转换；改了状态时，新状态必须为四种合法状态之一，否则报 UNKNOWN_STATUS。
      */
-    fun validateForUpdate(task: TaskEntity, originalCategory: String): List<TaskValidationError> =
-        validateInternal(task, originalCategory = originalCategory)
+    fun validateForUpdate(
+        task: TaskEntity,
+        originalCategory: String,
+        originalStatus: String
+    ): List<TaskValidationError> =
+        validateInternal(task, originalCategory = originalCategory, originalStatus = originalStatus)
 
-    private fun validateInternal(task: TaskEntity, originalCategory: String?): List<TaskValidationError> {
+    private fun validateInternal(
+        task: TaskEntity,
+        originalCategory: String?,
+        originalStatus: String?
+    ): List<TaskValidationError> {
         val errors = mutableListOf<TaskValidationError>()
         val title = task.title.trim()
         if (title.isEmpty()) {
@@ -87,7 +97,11 @@ object TaskValidator {
         if (start != null && end != null && end <= start) {
             errors += TaskValidationError.END_NOT_AFTER_START
         }
-        if (task.taskStatus() is TaskStatus.Unknown) {
+        // 状态：新建（originalStatus == null）严格校验，不允许 Unknown；
+        // 编辑时状态未改（与原值严格字符串相等，不 trim、不替换、不转换）则原样保留；
+        // 改了状态时，新状态必须为四种合法状态之一。
+        val statusUnchanged = originalStatus != null && task.status == originalStatus
+        if (!statusUnchanged && task.taskStatus() is TaskStatus.Unknown) {
             errors += TaskValidationError.UNKNOWN_STATUS
         }
         return errors

@@ -201,14 +201,14 @@ class TaskStatusTest {
     }
 
     @Test
-    fun stats_oneCompletedOneCancelledEightUnknown_rateIs10Percent() {
+    fun stats_oneCompletedOneCancelledEightUnknown_rateIs11Point11Percent() {
         val tasks = listOf(task("已完成"), task("已取消")) + List(8) { task("已删除") }
         val stats = tasks.completionStats()
         assertEquals(10, stats.total)
         assertEquals(1, stats.cancelled)
         assertEquals(8, stats.unknown)
-        // 按修订公式：完成率 = 1 / (10 - 1 已取消) × 100% = 11.11%，见设计文档第 7 节的 discrepancy 说明
-        assertEquals(10.0, stats.completionRate, 0.000001)
+        // 按修订公式：完成率 = 1 / (10 - 1 已取消) × 100% = 11.11%（原始数值，不四舍五入）
+        assertEquals(100.0 / 9.0, stats.completionRate, 0.000001)
     }
 
     @Test

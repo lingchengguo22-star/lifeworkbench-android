@@ -217,4 +217,36 @@ class TaskDaoTest {
         val after = dao.getTasksByDate("2026-11-14").first()
         assertEquals(listOf("新任务"), after.map { it.title })
     }
+
+    // ---- V1.1 阶段 1 最终验收前修复：update/delete 返回实际影响行数 ----
+
+    @Test
+    fun updateTask_returnsAffectedRowCount() = runBlocking {
+        val dao = db.taskDao()
+        val id = dao.insertTask(task("改", "待开始"))
+        val saved = dao.getTaskById(id.toInt())!!
+        assertEquals(1, dao.updateTask(saved.copy(title = "改后")))
+        assertEquals("改后", dao.getTaskById(id.toInt())?.title)
+        // 不存在的任务：影响 0 行，不抛异常、不假造成功
+        assertEquals(0, dao.updateTask(saved.copy(id = 999999, title = "不存在")))
+    }
+
+    @Test
+    fun deleteTask_returnsAffectedRowCount() = runBlocking {
+        val dao = db.taskDao()
+        val id = dao.insertTask(task("删", "待开始"))
+        val saved = dao.getTaskById(id.toInt())!!
+        assertEquals(1, dao.deleteTask(saved))
+        // 已删过的同一实体再删：影响 0 行
+        assertEquals(0, dao.deleteTask(saved))
+    }
+
+    @Test
+    fun deleteTaskById_returnsAffectedRowCount() = runBlocking {
+        val dao = db.taskDao()
+        val id = dao.insertTask(task("按ID删", "待开始"))
+        assertEquals(1, dao.deleteTaskById(id.toInt()))
+        assertEquals(0, dao.deleteTaskById(id.toInt()))
+        assertEquals(0, dao.deleteTaskById(999999))
+    }
 }

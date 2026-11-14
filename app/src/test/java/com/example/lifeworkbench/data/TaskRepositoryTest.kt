@@ -158,4 +158,116 @@ class TaskRepositoryTest {
         assertEquals("已删除", unknown[0].rawValue)
         assertEquals(1, counts[unknown[0]])
     }
+
+    // ---- V1.1 阶段 1 最终验收前修复：update/delete 按影响行数返回 NotFound ----
+
+    @Test
+    fun updateTask_existing_returnsSuccessAndPersists() = runBlocking {
+        val id = (repo.createTask(task()) as TaskResult.Success).data.toInt()
+        val result = repo.updateTask(task(title = "改后标题").copy(id = id))
+        assertTrue(result is TaskResult.Success)
+        val kept = repo.getTaskById(id) as TaskResult.Success
+        assertEquals("改后标题", kept.data.title)
+    }
+
+    @Test
+    fun updateTask_missing_returnsNotFound() = runBlocking {
+        val result = repo.updateTask(task(title = "不存在").copy(id = 999999))
+        assertTrue(result is TaskResult.Failure)
+        assertEquals(TaskError.NotFound(999999), (result as TaskResult.Failure).error)
+    }
+
+    @Test
+    fun deleteTask_existing_returnsSuccess() = runBlocking {
+        val id = (repo.createTask(task()) as TaskResult.Success).data.toInt()
+        val saved = (repo.getTaskById(id) as TaskResult.Success).data
+        val result = repo.deleteTask(saved)
+        assertTrue(result is TaskResult.Success)
+        assertTrue(repo.getTaskById(id) is TaskResult.Failure)
+    }
+
+    @Test
+    fun deleteTask_missing_returnsNotFound() = runBlocking {
+        val ghost = task(title = "不存在").copy(id = 999999)
+        val result = repo.deleteTask(ghost)
+        assertTrue(result is TaskResult.Failure)
+        assertEquals(TaskError.NotFound(999999), (result as TaskResult.Failure).error)
+    }
+
+    @Test
+    fun deleteTaskById_missing_returnsNotFound() = runBlocking {
+        val result = repo.deleteTaskById(999999)
+        assertTrue(result is TaskResult.Failure)
+        assertEquals(TaskError.NotFound(999999), (result as TaskResult.Failure).error)
+    }
+
+    // ---- V1.1 阶段 1 最终验收前修复：分类闭合 6 类，历史未知分类保留 ----
+
+    @Test
+    fun createTask_unknownCategory_returnsValidationFailed() = runBlocking {
+        val result = repo.createTask(task().copy(category = "工作"))
+        assertTrue(result is TaskResult.Failure)
+        val error = (result as TaskResult.Failure).error
+        assertTrue(error is TaskError.ValidationFailed)
+        assertEquals(
+            listOf(TaskValidationError.INVALID_CATEGORY),
+            (error as TaskError.ValidationFailed).errors
+        )
+        assertEquals(0, db.taskDao().countTasksByDate("2026-11-14"))
+    }
+
+    @Test
+    fun createTask_otherCategory_returnsSuccess() = runBlocking {
+        val result = repo.createTask(task().copy(category = "其他"))
+        assertTrue(result is TaskResult.Success)
+        val id = (result as TaskResult.Success).data.toInt()
+        assertEquals("其他", (repo.getTaskById(id) as TaskResult.Success).data.category)
+    }
+
+    @Test
+    fun updateTask_unchangedUnknownCategory_preservesAndSucceeds() = runBlocking {
+        // 历史数据：未知分类经 DAO 直接写入（模拟旧版本数据）
+        val id = db.taskDao().insertTask(task().copy(category = "工作")).toInt()
+        val result = repo.updateTask(task(title = "改后标题").copy(id = id, category = "工作"))
+        assertTrue(result is TaskResult.Success)
+        val kept = repo.getTaskById(id) as TaskResult.Success
+        assertEquals("工作", kept.data.category)
+        assertEquals("改后标题", kept.data.title)
+    }
+
+    @Test
+    fun updateTask_changeCategoryToIllegal_returnsValidationFailed() = runBlocking {
+        val id = db.taskDao().insertTask(task().copy(category = "工作")).toInt()
+        val result = repo.updateTask(task(title = "学习任务").copy(id = id, category = "非法分类"))
+        assertTrue(result is TaskResult.Failure)
+        val error = (result as TaskResult.Failure).error
+        assertTrue(error is TaskError.ValidationFailed)
+        assertEquals(
+            listOf(TaskValidationError.INVALID_CATEGORY),
+            (error as TaskError.ValidationFailed).errors
+        )
+        // 拒绝后数据库原值不变
+        val kept = repo.getTaskById(id) as TaskResult.Success
+        assertEquals("工作", kept.data.category)
+    }
+
+    // ---- V1.1 阶段 1 最终验收前修复：标题 trim 后保存，查数据库实际保存值 ----
+
+    @Test
+    fun createTask_trimsTitleBeforeSaving() = runBlocking {
+        val result = repo.createTask(task(title = "  学习计划  "))
+        assertTrue(result is TaskResult.Success)
+        val id = (result as TaskResult.Success).data.toInt()
+        val got = repo.getTaskById(id) as TaskResult.Success
+        assertEquals("学习计划", got.data.title)
+    }
+
+    @Test
+    fun updateTask_trimsTitleBeforeSaving() = runBlocking {
+        val id = (repo.createTask(task(title = "学习计划")) as TaskResult.Success).data.toInt()
+        val result = repo.updateTask(task(title = "  复习功课  ").copy(id = id))
+        assertTrue(result is TaskResult.Success)
+        val got = repo.getTaskById(id) as TaskResult.Success
+        assertEquals("复习功课", got.data.title)
+    }
 }

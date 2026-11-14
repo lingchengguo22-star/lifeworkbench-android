@@ -64,12 +64,12 @@ class TaskValidatorTest {
     fun category_validateForUpdate_unchangedUnknown_passes() {
         // 编辑历史任务、未改分类：未知分类原样保留，不阻止保存
         assertTrue(
-            TaskValidator.validateForUpdate(task(category = "工作"), "工作").isEmpty()
+            TaskValidator.validateForUpdate(task(category = "工作"), "工作", "待开始").isEmpty()
         )
         // 超长历史分类同样不阻止保存（仅因分类未知/超长而拦截编辑是被禁止的）
         val longCategory = "a".repeat(25)
         assertTrue(
-            TaskValidator.validateForUpdate(task(category = longCategory), longCategory).isEmpty()
+            TaskValidator.validateForUpdate(task(category = longCategory), longCategory, "待开始").isEmpty()
         )
     }
 
@@ -78,15 +78,15 @@ class TaskValidatorTest {
         // 主动把分类改成非法值：拒绝
         assertEquals(
             listOf(TaskValidationError.INVALID_CATEGORY),
-            TaskValidator.validateForUpdate(task(category = "工作"), "学习")
+            TaskValidator.validateForUpdate(task(category = "工作"), "学习", "待开始")
         )
         assertEquals(
             listOf(TaskValidationError.EMPTY_CATEGORY),
-            TaskValidator.validateForUpdate(task(category = "  "), "学习")
+            TaskValidator.validateForUpdate(task(category = "  "), "学习", "待开始")
         )
         assertEquals(
             listOf(TaskValidationError.CATEGORY_TOO_LONG),
-            TaskValidator.validateForUpdate(task(category = "a".repeat(21)), "学习")
+            TaskValidator.validateForUpdate(task(category = "a".repeat(21)), "学习", "待开始")
         )
     }
 
@@ -94,10 +94,48 @@ class TaskValidatorTest {
     fun category_validateForUpdate_changedToLegal_passes() {
         // 把历史未知分类改成合法值：允许；合法值之间互改也允许
         assertTrue(
-            TaskValidator.validateForUpdate(task(category = "健身"), "工作").isEmpty()
+            TaskValidator.validateForUpdate(task(category = "健身"), "工作", "待开始").isEmpty()
         )
         assertTrue(
-            TaskValidator.validateForUpdate(task(category = "其他"), "学习").isEmpty()
+            TaskValidator.validateForUpdate(task(category = "其他"), "学习", "待开始").isEmpty()
+        )
+    }
+
+    // ---- V1.1 阶段 1 最终修复：历史未知状态编辑兼容 ----
+
+    @Test
+    fun validateForUpdate_unchangedUnknownStatus_passes() {
+        // 历史未知状态未改：允许保留，不自动转换
+        assertTrue(
+            TaskValidator.validateForUpdate(task(status = "已删除"), "学习", "已删除").isEmpty()
+        )
+    }
+
+    @Test
+    fun validateForUpdate_changedUnknownToLegal_passes() {
+        // 未知状态主动改成四种合法状态之一：均允许
+        for (legal in listOf("待开始", "进行中", "已完成", "已取消")) {
+            assertTrue(
+                "改成 $legal 应合法",
+                TaskValidator.validateForUpdate(task(status = legal), "学习", "已删除").isEmpty()
+            )
+        }
+    }
+
+    @Test
+    fun validateForUpdate_changedUnknownToIllegal_rejected() {
+        // 未知状态主动改成另一个非法状态：拒绝
+        assertEquals(
+            listOf(TaskValidationError.UNKNOWN_STATUS),
+            TaskValidator.validateForUpdate(task(status = "作废"), "学习", "已删除")
+        )
+    }
+
+    @Test
+    fun validateForUpdate_unchangedKnownStatus_passes() {
+        // 已知状态未改：允许（回归）
+        assertTrue(
+            TaskValidator.validateForUpdate(task(status = "待开始"), "学习", "待开始").isEmpty()
         )
     }
 

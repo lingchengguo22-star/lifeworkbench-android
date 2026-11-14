@@ -37,8 +37,68 @@ class TaskValidatorTest {
         assertTrue(TaskValidator.validate(task()).isEmpty())
         // 带时间的合法任务
         assertTrue(TaskValidator.validate(task(startMinute = 540, endMinute = 600)).isEmpty())
-        // 开放分类值允许保留（兼容历史数据）
-        assertTrue(TaskValidator.validate(task(category = "工作")).isEmpty())
+    }
+
+    @Test
+    fun category_sixLegalValues_pass() {
+        // 修复指令规定的 6 类合法值：新建任务只允许这些分类
+        for (value in listOf("学习", "健身", "饮食", "游戏", "睡眠", "其他")) {
+            assertTrue("分类 $value 应合法", TaskValidator.validate(task(category = value)).isEmpty())
+        }
+    }
+
+    @Test
+    fun category_unknownValue_rejectedOnCreate() {
+        // 新建任务用 6 类之外的值：拒绝，不做自动替换
+        assertEquals(
+            listOf(TaskValidationError.INVALID_CATEGORY),
+            TaskValidator.validate(task(category = "工作"))
+        )
+        assertEquals(
+            listOf(TaskValidationError.INVALID_CATEGORY),
+            TaskValidator.validate(task(category = "自定义"))
+        )
+    }
+
+    @Test
+    fun category_validateForUpdate_unchangedUnknown_passes() {
+        // 编辑历史任务、未改分类：未知分类原样保留，不阻止保存
+        assertTrue(
+            TaskValidator.validateForUpdate(task(category = "工作"), "工作").isEmpty()
+        )
+        // 超长历史分类同样不阻止保存（仅因分类未知/超长而拦截编辑是被禁止的）
+        val longCategory = "a".repeat(25)
+        assertTrue(
+            TaskValidator.validateForUpdate(task(category = longCategory), longCategory).isEmpty()
+        )
+    }
+
+    @Test
+    fun category_validateForUpdate_changedToIllegal_rejected() {
+        // 主动把分类改成非法值：拒绝
+        assertEquals(
+            listOf(TaskValidationError.INVALID_CATEGORY),
+            TaskValidator.validateForUpdate(task(category = "工作"), "学习")
+        )
+        assertEquals(
+            listOf(TaskValidationError.EMPTY_CATEGORY),
+            TaskValidator.validateForUpdate(task(category = "  "), "学习")
+        )
+        assertEquals(
+            listOf(TaskValidationError.CATEGORY_TOO_LONG),
+            TaskValidator.validateForUpdate(task(category = "a".repeat(21)), "学习")
+        )
+    }
+
+    @Test
+    fun category_validateForUpdate_changedToLegal_passes() {
+        // 把历史未知分类改成合法值：允许；合法值之间互改也允许
+        assertTrue(
+            TaskValidator.validateForUpdate(task(category = "健身"), "工作").isEmpty()
+        )
+        assertTrue(
+            TaskValidator.validateForUpdate(task(category = "其他"), "学习").isEmpty()
+        )
     }
 
     @Test
@@ -109,7 +169,11 @@ class TaskValidatorTest {
             listOf(TaskValidationError.CATEGORY_TOO_LONG),
             TaskValidator.validate(task(category = "a".repeat(21)))
         )
-        assertTrue(TaskValidator.validate(task(category = "a".repeat(20))).isEmpty())
+        // 20 个字符不超长，但不在 6 类合法值内，新建时仍拒绝
+        assertEquals(
+            listOf(TaskValidationError.INVALID_CATEGORY),
+            TaskValidator.validate(task(category = "a".repeat(20)))
+        )
     }
 
     @Test

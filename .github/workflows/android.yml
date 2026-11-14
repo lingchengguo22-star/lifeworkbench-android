@@ -1,7 +1,7 @@
 name: Android Debug APK
 on:
   push:
-    branches: [ main ]
+    branches: [ main, v1.1-dev ]
   workflow_dispatch:
 jobs:
   build:
@@ -27,6 +27,8 @@ jobs:
         run: |
           curl -sL -o gradle-8.0-bin.zip https://services.gradle.org/distributions/gradle-8.0-bin.zip
           unzip -q gradle-8.0-bin.zip
+      - name: Run unit tests
+        run: ./gradle-8.0/bin/gradle testDebugUnitTest --no-daemon --stacktrace
       - name: Build debug APK
         run: ./gradle-8.0/bin/gradle assembleDebug --no-daemon --stacktrace
       - name: Upload APK

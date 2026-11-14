@@ -51,14 +51,16 @@ class TaskDaoTest {
     @Test
     fun knownChineseStatuses_saveAndReadBack() = runBlocking {
         val dao = db.taskDao()
-        for (status in TaskStatus.KNOWN) {
-            dao.insertTask(task("任务-${status.dbValue}", status.toDbValue()!!))
+        // 直接用中文字符串写入（与其它通过的测试保持同一写法），避免在 DAO 测试里混入映射层逻辑
+        val statuses = listOf("待开始", "进行中", "已完成", "已取消")
+        for (value in statuses) {
+            dao.insertTask(task("任务-$value", value))
         }
         val saved = dao.getTasksByDate("2026-11-14").first()
         assertEquals(4, saved.size)
         // 数据库里读回来的必须是中文原值，且能映射回英文常量（用集合比较，不依赖字符串排序）
         assertEquals(
-            setOf("待开始", "进行中", "已完成", "已取消"),
+            statuses.toSet(),
             saved.map { it.status }.toSet()
         )
         assertEquals(

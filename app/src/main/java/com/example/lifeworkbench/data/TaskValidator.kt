@@ -10,6 +10,7 @@ enum class TaskValidationError(val message: String) {
     INVALID_DATE("日期格式不正确，应为 YYYY-MM-DD 的真实日期"),
     EMPTY_CATEGORY("分类不能为空"),
     CATEGORY_TOO_LONG("分类最多 20 个字符"),
+    INVALID_CATEGORY("分类必须是学习、健身、饮食、游戏、睡眠、其他之一"),
     INVALID_PRIORITY("优先级只能为 1、2、3"),
     TIME_PARTIAL("开始时间和结束时间必须同时为空或同时存在"),
     TIME_OUT_OF_RANGE("开始/结束时间必须在 0~1439 分钟之间"),
@@ -18,18 +19,33 @@ enum class TaskValidationError(val message: String) {
 }
 
 /**
- * 统一任务数据验证逻辑（V1.1 阶段 1）。
+ * 统一任务数据验证逻辑（V1.1 阶段 1，最终验收前修复）。
  * 校验不通过返回全部违规项，调用方不得把错误数据写入数据库。
- * 注意：分类为开放值——已知 5 类（学习、健身、饮食、游戏、睡眠）之外的值允许保留，
- * 只校验非空与长度，不擅自破坏已有分类兼容性。
+ * 分类规则（修复指令）：新建任务只允许 6 类合法值（学习、健身、饮食、游戏、睡眠、其他）；
+ * 编辑历史任务时，若未改分类，历史值原样保留、不做分类校验；若改了分类，则按新建同样校验。
  * 未知状态不做任何自动转换：新建/修改时遇到未知状态直接报 UNKNOWN_STATUS。
  */
 object TaskValidator {
 
-    /** 已定义的分类（TaskEntity 注释）；“等”字表示开放，之外的值同样允许。 */
-    val KNOWN_CATEGORIES = setOf("学习", "健身", "饮食", "游戏", "睡眠")
+    /** 新建任务允许的分类（修复指令规定的 6 类合法值）。 */
+    val LEGAL_CATEGORIES = setOf("学习", "健身", "饮食", "游戏", "睡眠", "其他")
 
-    fun validate(task: TaskEntity): List<TaskValidationError> {
+    /**
+     * 新建任务校验：分类必须在 [LEGAL_CATEGORIES] 内。
+     * （旧名 validate 保留：全部既有调用均为新建路径。）
+     */
+    fun validate(task: TaskEntity): List<TaskValidationError> =
+        validateInternal(task, originalCategory = null)
+
+    /**
+     * 编辑任务校验：[originalCategory] 为数据库中原任务的分类。
+     * 未改分类（与原值相同，忽略首尾空格差异）时，历史分类原样保留，不做任何分类校验；
+     * 改了分类时，按新建同样校验（非空、长度、在 6 类合法值内）。
+     */
+    fun validateForUpdate(task: TaskEntity, originalCategory: String): List<TaskValidationError> =
+        validateInternal(task, originalCategory = originalCategory)
+
+    private fun validateInternal(task: TaskEntity, originalCategory: String?): List<TaskValidationError> {
         val errors = mutableListOf<TaskValidationError>()
         val title = task.title.trim()
         if (title.isEmpty()) {
@@ -44,10 +60,15 @@ object TaskValidator {
             errors += TaskValidationError.INVALID_DATE
         }
         val category = task.category.trim()
-        if (category.isEmpty()) {
-            errors += TaskValidationError.EMPTY_CATEGORY
-        } else if (category.length > 20) {
-            errors += TaskValidationError.CATEGORY_TOO_LONG
+        val categoryUnchanged = originalCategory != null && category == originalCategory.trim()
+        if (!categoryUnchanged) {
+            if (category.isEmpty()) {
+                errors += TaskValidationError.EMPTY_CATEGORY
+            } else if (category.length > 20) {
+                errors += TaskValidationError.CATEGORY_TOO_LONG
+            } else if (category !in LEGAL_CATEGORIES) {
+                errors += TaskValidationError.INVALID_CATEGORY
+            }
         }
         if (task.priority !in 1..3) {
             errors += TaskValidationError.INVALID_PRIORITY

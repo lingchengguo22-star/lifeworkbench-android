@@ -68,8 +68,20 @@ sealed class TaskStatus {
     fun toDbValue(): String? = dbValue
 
     companion object {
-        /** 已知 4 种状态，按 TaskEntity 注释定义的顺序。 */
-        val KNOWN: List<TaskStatus> = listOf(Pending, InProgress, Completed, Cancelled)
+        /**
+         * 已知 4 种状态，按 TaskEntity 注释定义的顺序。
+         *
+         * 注意：必须用 get() 每次重新求值，不能写成初始化时求值的 val。
+         * 原因（2026-11-14 CI 定位）：KNOWN 在伴生对象初始化时求值会与嵌套 object
+         * 产生循环初始化——若首次访问的是 Completed，伴生对象初始化会先跑到
+         * listOf(Pending, InProgress, Completed, Cancelled)，此时 Completed
+         * 的类初始化尚未完成，其 INSTANCE 字段还是 null，KNOWN 就会把 null
+         * 当成第三个元素装进去；后续 `for (status in KNOWN)` 读到 null 再调
+         * toDbValue() 就会报 NullPointerException（第 10/11/12 次 CI 均因此失败）。
+         * get() 在调用时才求值，此时四个 object 均已初始化完成，不会再拿到 null。
+         */
+        val KNOWN: List<TaskStatus>
+            get() = listOf(Pending, InProgress, Completed, Cancelled)
 
         /**
          * 数据库值 → 状态。严格按字符串全等匹配，不做任何归一化。

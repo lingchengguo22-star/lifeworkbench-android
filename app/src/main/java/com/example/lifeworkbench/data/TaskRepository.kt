@@ -78,7 +78,7 @@ class TaskRepository(private val dao: TaskDao) {
             if (existing == null) {
                 TaskResult.Failure(TaskError.NotFound(normalized.id))
             } else {
-                val errors = TaskValidator.validateForUpdate(normalized, existing.category)
+                val errors = TaskValidator.validateForUpdate(normalized, existing.category, existing.status)
                 if (errors.isNotEmpty()) {
                     TaskResult.Failure(TaskError.ValidationFailed(errors))
                 } else {

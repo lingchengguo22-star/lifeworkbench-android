@@ -8,6 +8,7 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.lifeworkbench.LifeWorkbenchApp
@@ -38,7 +39,7 @@ fun HomeScreen(
 
         // 今日任务卡片（点击进入今日计划）
         Card(
-            modifier = Modifier.fillMaxWidth().clickable { onNavigateToToday() }
+            modifier = Modifier.fillMaxWidth().clickable { onNavigateToToday() }.testTag("todayCard")
         ) {
             Column(modifier = Modifier.padding(16.dp)) {
                 Text("今日任务", style = MaterialTheme.typography.titleMedium)
@@ -105,6 +106,7 @@ fun HomeScreen(
 private fun ModuleSummaryCard(title: String, summaryText: String, onClick: () -> Unit) {
     Card(
         modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp).clickable { onClick() }
+            .testTag("moduleCard_$title")
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
             Text(title, style = MaterialTheme.typography.titleMedium)

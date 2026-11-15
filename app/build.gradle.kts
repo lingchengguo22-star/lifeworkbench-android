@@ -98,4 +98,9 @@ dependencies {
     testImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.7.3")
     // 迁移测试：用真实旧 Schema 创建数据库并校验迁移
     testImplementation("androidx.room:room-testing:2.6.0")
+    // Compose UI 测试（补充验收任务 1）：Robolectric 图形模式 + createAndroidComposeRule，
+    // 版本与 Compose BOM 2023.03.00 一致（ui 1.4.0），androidx.test 1.5.x 配套
+    testImplementation("androidx.compose.ui:ui-test-junit4:1.4.0")
+    testImplementation("androidx.compose.ui:ui-test-manifest:1.4.0")
+    testImplementation("androidx.test.ext:junit:1.1.5")
 }

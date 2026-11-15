@@ -87,40 +87,44 @@ fun TodayPlanScreen() {
             Spacer(modifier = Modifier.height(8.dp))
         }
 
-        // 任务列表
-        val timedTasks = tasks.filter { it.startMinute != null }
-        val untimedTasks = tasks.filter { it.startMinute == null }
-        if (tasks.isEmpty()) {
-            Box(modifier = Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
-                Text("暂无任务", style = MaterialTheme.typography.bodyLarge)
-            }
-        } else {
-            LazyColumn(modifier = Modifier.weight(1f).fillMaxWidth()) {
-                if (timedTasks.isNotEmpty()) {
-                    item { Text("有时间任务", style = MaterialTheme.typography.titleMedium) }
-                    items(timedTasks, key = { it.id }) { task ->
-                        TaskItem(
-                            task = task,
-                            onDetail = { detailTask = task },
-                            onEdit = { editingTask = task; showForm = true },
-                            onDelete = { deleteTarget = task },
-                            onSetStatus = { status -> viewModel.setStatus(task, status) }
-                        )
-                    }
+        // 任务列表：用 key(selectedDate) 包裹，日期切换时整列重建，
+        // 保证旧日期的任务节点（含语义节点）被彻底销毁，而非在 LazyColumn 内复用/滞留。
+        // 真机上行为不变（新日期本就应显示全新列表）；Robolectric 下旧节点不再滞留。
+        key(selectedDate) {
+            val timedTasks = tasks.filter { it.startMinute != null }
+            val untimedTasks = tasks.filter { it.startMinute == null }
+            if (tasks.isEmpty()) {
+                Box(modifier = Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
+                    Text("暂无任务", style = MaterialTheme.typography.bodyLarge)
                 }
-                if (untimedTasks.isNotEmpty()) {
-                    item {
-                        Spacer(modifier = Modifier.height(12.dp))
-                        Text("无时间任务", style = MaterialTheme.typography.titleMedium)
+            } else {
+                LazyColumn(modifier = Modifier.weight(1f).fillMaxWidth()) {
+                    if (timedTasks.isNotEmpty()) {
+                        item { Text("有时间任务", style = MaterialTheme.typography.titleMedium) }
+                        items(timedTasks, key = { it.id }) { task ->
+                            TaskItem(
+                                task = task,
+                                onDetail = { detailTask = task },
+                                onEdit = { editingTask = task; showForm = true },
+                                onDelete = { deleteTarget = task },
+                                onSetStatus = { status -> viewModel.setStatus(task, status) }
+                            )
+                        }
                     }
-                    items(untimedTasks, key = { it.id }) { task ->
-                        TaskItem(
-                            task = task,
-                            onDetail = { detailTask = task },
-                            onEdit = { editingTask = task; showForm = true },
-                            onDelete = { deleteTarget = task },
-                            onSetStatus = { status -> viewModel.setStatus(task, status) }
-                        )
+                    if (untimedTasks.isNotEmpty()) {
+                        item {
+                            Spacer(modifier = Modifier.height(12.dp))
+                            Text("无时间任务", style = MaterialTheme.typography.titleMedium)
+                        }
+                        items(untimedTasks, key = { it.id }) { task ->
+                            TaskItem(
+                                task = task,
+                                onDetail = { detailTask = task },
+                                onEdit = { editingTask = task; showForm = true },
+                                onDelete = { deleteTarget = task },
+                                onSetStatus = { status -> viewModel.setStatus(task, status) }
+                            )
+                        }
                     }
                 }
             }

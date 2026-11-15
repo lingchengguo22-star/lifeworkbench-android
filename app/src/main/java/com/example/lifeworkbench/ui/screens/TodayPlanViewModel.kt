@@ -42,10 +42,18 @@ class TodayPlanViewModel(
     private val _selectedDate = MutableStateFlow(todayProvider())
     val selectedDate: StateFlow<LocalDate> = _selectedDate.asStateFlow()
 
-    /** 当前选中日期的任务（DAO 已按“有时间在前、开始时间升序、无时间在后”排好序）。 */
+    /**
+     * 当前选中日期的任务（DAO 已按“有时间在前、开始时间升序、无时间在后”排好序）。
+     *
+     * 用 Eagerly 而非 WhileSubscribed：上游含 flatMapLatest 切换日期查询，
+     * 若订阅在重组瞬间短暂断开再恢复，WhileSubscribed 的停/启可能让旧日期
+     * 的发射与新日期的发射交错，导致界面上旧任务滞留；Eagerly 让上游在
+     * ViewModel 存续期间持续订阅，日期切换只产生一次干净的替换。
+     * ViewModel 随“今日”返回栈项创建/销毁，Eagerly 不会让查询在切出页面后还跑。
+     */
     val tasks: StateFlow<List<TaskEntity>> = _selectedDate
         .flatMapLatest { date -> repository.getTasksByDate(date.toIsoDate()) }
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+        .stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
 
     private val _message = MutableStateFlow<TodayPlanMessage?>(null)
     val message: StateFlow<TodayPlanMessage?> = _message.asStateFlow()

@@ -58,8 +58,9 @@ class HomeViewModelTest {
             dietDao = db.dietRecordDao(),
             fitnessDao = db.fitnessRecordDao(),
             gameDao = db.gameRecordDao(),
-            sleepDao = db.sleepRecordDao()
-        ) { today }
+            sleepDao = db.sleepRecordDao(),
+            todayProvider = { today }
+        )
         viewModel = HomeViewModel(taskRepo, summaryRepo) { today }
     }
 

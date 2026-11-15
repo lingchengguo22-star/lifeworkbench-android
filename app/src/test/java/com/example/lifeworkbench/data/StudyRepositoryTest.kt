@@ -4,6 +4,7 @@ import androidx.room.Room
 import androidx.test.core.app.ApplicationProvider
 import com.example.lifeworkbench.data.entities.StudyRecordDao
 import com.example.lifeworkbench.data.entities.StudyRecordEntity
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.emptyFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
@@ -166,5 +167,36 @@ class StudyRepositoryTest {
         val result = brokenRepo.getRecordById(1)
         assertTrue(result is RepoResult.Failure)
         assertTrue((result as RepoResult.Failure).error is RepoError.Database)
+    }
+
+    /**
+     * 取消异常测试替身：DAO 抛 CancellationException 时 Repository 必须原样向上抛出，
+     * 不得包装为数据库错误（否则协程取消会被吞掉，调用方无法感知取消）。
+     */
+    private class CancellingStudyDao : StudyRecordDao {
+        override fun getRecordsByDate(date: String) = emptyFlow<List<StudyRecordEntity>>()
+        override fun getAllRecords() = emptyFlow<List<StudyRecordEntity>>()
+        override suspend fun getRecordById(id: Int): StudyRecordEntity? =
+            throw CancellationException("模拟协程取消")
+        override suspend fun insertRecord(record: StudyRecordEntity): Long =
+            throw CancellationException("模拟协程取消")
+        override suspend fun updateRecord(record: StudyRecordEntity): Int =
+            throw CancellationException("模拟协程取消")
+        override suspend fun deleteRecord(record: StudyRecordEntity): Int =
+            throw CancellationException("模拟协程取消")
+        override suspend fun deleteRecordById(id: Int): Int =
+            throw CancellationException("模拟协程取消")
+    }
+
+    @Test(expected = CancellationException::class)
+    fun createRecord_cancellationException_propagates() = runBlocking {
+        val cancellingRepo = StudyRepository(CancellingStudyDao())
+        cancellingRepo.createRecord(record())
+    }
+
+    @Test(expected = CancellationException::class)
+    fun getRecordById_cancellationException_propagates() = runBlocking {
+        val cancellingRepo = StudyRepository(CancellingStudyDao())
+        cancellingRepo.getRecordById(1)
     }
 }

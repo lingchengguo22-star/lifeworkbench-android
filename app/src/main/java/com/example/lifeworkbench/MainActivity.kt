@@ -37,9 +37,20 @@ fun MainScreen() {
         }
     ) { paddingValues ->
         NavHost(navController = navController, startDestination = "home", modifier = Modifier.padding(paddingValues)) {
-            composable("home") { HomeScreen() }
+            composable("home") {
+                HomeScreen(
+                    onNavigateToToday = { navController.navigate("today") },
+                    onNavigateToModule = { name -> navController.navigate("module/$name") }
+                )
+            }
             composable("today") { TodayPlanScreen() }
             composable("settings") { SettingsScreen() }
+            // 五大业务模块尚未开发，点击摘要卡片进入明确的占位页面（阶段 2.2）
+            composable("module/{name}") { backStackEntry ->
+                ModulePlaceholderScreen(
+                    moduleName = backStackEntry.arguments?.getString("name") ?: ""
+                )
+            }
         }
     }
 }

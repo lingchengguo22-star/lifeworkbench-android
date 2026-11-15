@@ -4,6 +4,7 @@ import androidx.room.Room
 import androidx.test.core.app.ApplicationProvider
 import com.example.lifeworkbench.data.entities.GameEntity
 import com.example.lifeworkbench.data.entities.GameRecordDao
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.emptyFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
@@ -216,5 +217,37 @@ class GameRepositoryTest {
         val result = brokenRepo.getRecordById(1)
         assertTrue(result is RepoResult.Failure)
         assertTrue((result as RepoResult.Failure).error is RepoError.Database)
+    }
+
+    /**
+     * 取消异常测试替身：DAO 抛 CancellationException 时 Repository 必须原样向上抛出，
+     * 不得包装为数据库错误（否则协程取消会被吞掉，调用方无法感知取消）。
+     */
+    private class CancellingGameDao : GameRecordDao {
+        override fun getAllRecords() = emptyFlow<List<GameEntity>>()
+        override suspend fun getRecordById(id: Int): GameEntity? =
+            throw CancellationException("模拟协程取消")
+        override suspend fun insertRecord(record: GameEntity): Long =
+            throw CancellationException("模拟协程取消")
+        override suspend fun updateRecord(record: GameEntity): Int =
+            throw CancellationException("模拟协程取消")
+        override suspend fun deleteRecord(record: GameEntity): Int =
+            throw CancellationException("模拟协程取消")
+        override suspend fun deleteRecordById(id: Int): Int =
+            throw CancellationException("模拟协程取消")
+        override fun getRecordsByStartTimeRange(dayStart: Long, dayEnd: Long) =
+            emptyFlow<List<GameEntity>>()
+    }
+
+    @Test(expected = CancellationException::class)
+    fun createRecord_cancellationException_propagates() = runBlocking {
+        val cancellingRepo = GameRepository(CancellingGameDao()) { zone }
+        cancellingRepo.createRecord(record())
+    }
+
+    @Test(expected = CancellationException::class)
+    fun getRecordById_cancellationException_propagates() = runBlocking {
+        val cancellingRepo = GameRepository(CancellingGameDao()) { zone }
+        cancellingRepo.getRecordById(1)
     }
 }

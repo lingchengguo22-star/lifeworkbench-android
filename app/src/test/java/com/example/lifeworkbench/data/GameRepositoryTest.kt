@@ -3,6 +3,8 @@ package com.example.lifeworkbench.data
 import androidx.room.Room
 import androidx.test.core.app.ApplicationProvider
 import com.example.lifeworkbench.data.entities.GameEntity
+import com.example.lifeworkbench.data.entities.GameRecordDao
+import kotlinx.coroutines.flow.emptyFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
 import org.junit.After
@@ -179,27 +181,38 @@ class GameRepositoryTest {
         assertEquals(listOf("B"), repo.getAllRecords().first().map { it.gameName })
     }
 
+    /**
+     * 数据库异常测试替身：DAO 抛异常时 Repository 必须返回 Database 错误，不抛到调用方。
+     * （说明：Room 关闭后会重开连接而非抛异常，因此不能用“关闭数据库”模拟异常；
+     * 用抛异常的 DAO 替身直接验证 Repository 的异常包装。）
+     */
+    private class ThrowingGameDao : GameRecordDao {
+        override fun getAllRecords() = emptyFlow<List<GameEntity>>()
+        override suspend fun getRecordById(id: Int): GameEntity? =
+            throw RuntimeException("模拟数据库异常")
+        override suspend fun insertRecord(record: GameEntity): Long =
+            throw RuntimeException("模拟数据库异常")
+        override suspend fun updateRecord(record: GameEntity): Int =
+            throw RuntimeException("模拟数据库异常")
+        override suspend fun deleteRecord(record: GameEntity): Int =
+            throw RuntimeException("模拟数据库异常")
+        override suspend fun deleteRecordById(id: Int): Int =
+            throw RuntimeException("模拟数据库异常")
+        override fun getRecordsByStartTimeRange(dayStart: Long, dayEnd: Long) =
+            emptyFlow<List<GameEntity>>()
+    }
+
     @Test
-    fun createRecord_databaseClosed_returnsDatabaseError() = runBlocking {
-        val brokenDb = Room.inMemoryDatabaseBuilder(
-            ApplicationProvider.getApplicationContext(),
-            AppDatabase::class.java
-        ).allowMainThreadQueries().build()
-        val brokenRepo = GameRepository(brokenDb.gameRecordDao()) { zone }
-        brokenDb.close()
+    fun createRecord_daoThrows_returnsDatabaseError() = runBlocking {
+        val brokenRepo = GameRepository(ThrowingGameDao()) { zone }
         val result = brokenRepo.createRecord(record())
         assertTrue(result is RepoResult.Failure)
         assertTrue((result as RepoResult.Failure).error is RepoError.Database)
     }
 
     @Test
-    fun getRecordById_databaseClosed_returnsDatabaseError() = runBlocking {
-        val brokenDb = Room.inMemoryDatabaseBuilder(
-            ApplicationProvider.getApplicationContext(),
-            AppDatabase::class.java
-        ).allowMainThreadQueries().build()
-        val brokenRepo = GameRepository(brokenDb.gameRecordDao()) { zone }
-        brokenDb.close()
+    fun getRecordById_daoThrows_returnsDatabaseError() = runBlocking {
+        val brokenRepo = GameRepository(ThrowingGameDao()) { zone }
         val result = brokenRepo.getRecordById(1)
         assertTrue(result is RepoResult.Failure)
         assertTrue((result as RepoResult.Failure).error is RepoError.Database)

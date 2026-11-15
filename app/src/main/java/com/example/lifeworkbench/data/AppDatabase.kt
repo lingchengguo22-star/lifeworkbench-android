@@ -19,6 +19,14 @@ import com.example.lifeworkbench.data.entities.*
 abstract class AppDatabase : RoomDatabase() {
     abstract fun taskDao(): TaskDao
 
+    // 五大业务模块只读 DAO（V1.1 阶段 2.2：首页摘要）。仅新增 DAO 访问方法，
+    // 不改实体、不改表结构、不升级数据库版本，Schema 不变。
+    abstract fun studyRecordDao(): StudyRecordDao
+    abstract fun dietRecordDao(): DietRecordDao
+    abstract fun fitnessRecordDao(): FitnessRecordDao
+    abstract fun gameRecordDao(): GameRecordDao
+    abstract fun sleepRecordDao(): SleepRecordDao
+
     companion object {
         /**
          * V1 → V2 迁移（V1.1 阶段 1）：tasks 表新增开始/结束时间列。

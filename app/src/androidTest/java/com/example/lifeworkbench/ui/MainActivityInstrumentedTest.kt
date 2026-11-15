@@ -1,6 +1,7 @@
 package com.example.lifeworkbench.ui
 
 import android.content.Context
+import androidx.compose.ui.test.ExperimentalTestApi
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
@@ -33,6 +34,7 @@ import org.junit.runner.RunWith
  * 进程杀死后原规则的 Activity 已销毁，改用 UIAutomator（系统级）断言重开后的界面。
  */
 @RunWith(AndroidJUnit4::class)
+@OptIn(ExperimentalTestApi::class)
 class MainActivityInstrumentedTest {
 
     @get:Rule

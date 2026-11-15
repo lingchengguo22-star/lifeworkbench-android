@@ -11,6 +11,7 @@ import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
+import kotlinx.coroutines.withContext
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
@@ -125,9 +126,17 @@ class HomeViewModelTest {
     fun summaries_reflectSavedData() = runTest(testDispatcher) {
         val before = viewModel.summaries.first { it != null }!!
         assertEquals(0, before.study.recordCount)
-        db.openHelper.writableDatabase.execSQL(
-            "INSERT INTO study_records (date, durationMinutes, content, knowledgePointId) VALUES ('2026-11-15', 45, '学习内容', NULL)"
-        )
+        // 必须包在 Room 事务里：裸 execSQL 不经过 RoomDatabase.endTransaction()，
+        // 不会触发 InvalidationTracker.refreshVersionsAsync()，Room Flow 就收不到
+        // 变更通知、不会重新发射，测试会 10 秒超时（CI #63 的失败原因）。
+        // runInTransaction 会 assertNotMainThread，测试体跑在主线程上，故切到 IO 线程执行。
+        withContext(Dispatchers.IO) {
+            db.runInTransaction {
+                db.openHelper.writableDatabase.execSQL(
+                    "INSERT INTO study_records (date, durationMinutes, content, knowledgePointId) VALUES ('2026-11-15', 45, '学习内容', NULL)"
+                )
+            }
+        }
         val after = viewModel.summaries.first { it != null && it.study.recordCount == 1 }!!
         assertEquals(45, after.study.totalMinutes)
     }

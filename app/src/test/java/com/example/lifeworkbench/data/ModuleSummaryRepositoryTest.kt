@@ -44,8 +44,9 @@ class ModuleSummaryRepositoryTest {
             dietDao = db.dietRecordDao(),
             fitnessDao = db.fitnessRecordDao(),
             gameDao = db.gameRecordDao(),
-            sleepDao = db.sleepRecordDao()
-        ) { today }
+            sleepDao = db.sleepRecordDao(),
+            todayProvider = { today }
+        )
     }
 
     @After
@@ -137,6 +138,84 @@ class ModuleSummaryRepositoryTest {
         val second = repo.getTodaySummaries().first { it.study.recordCount == 1 }
         assertEquals(25, second.study.totalMinutes)
     }
+
+    // ---- 补充任务 3：时区、夏令时与非法时长 ----
+
+    @Test
+    fun gameSummary_fixedEpoch_convertsToLocalDateByZone() = runTest {
+        // 同一时刻 2026-11-14T18:00:00Z：上海为 11-15 02:00（今天），纽约（EST）为 11-14 13:00（昨天）。
+        // 用写死的 epoch 毫秒验证转换，不依赖“本地时间→epoch→本地日期”的循环构造。
+        val fixedEpoch = 1794679200000L
+        insertGame("固定时刻游戏", fixedEpoch, fixedEpoch + 3600000L, 60)
+        val repoShanghai = repoWithZone(ZoneId.of("Asia/Shanghai"))
+        val repoNewYork = repoWithZone(ZoneId.of("America/New_York"))
+        val sShanghai = repoShanghai.getTodaySummaries().first { it.game.recordCount == 1 }
+        assertEquals(60, sShanghai.game.totalMinutes)
+        val sNewYork = repoNewYork.getTodaySummaries().first()
+        assertEquals(0, sNewYork.game.recordCount)
+        assertEquals(0, sNewYork.game.totalMinutes)
+    }
+
+    @Test
+    fun gameSummary_dstFallbackBoundary_attributedCorrectly() = runTest {
+        // 2026-11-01 美国东部夏令时结束：02:00 EDT 回拨为 01:00 EST，当天 25 小时。
+        // 当天取 2026-11-01，时区 America/New_York。
+        val dstRepo = ModuleSummaryRepository(
+            studyDao = db.studyRecordDao(),
+            dietDao = db.dietRecordDao(),
+            fitnessDao = db.fitnessRecordDao(),
+            gameDao = db.gameRecordDao(),
+            sleepDao = db.sleepRecordDao(),
+            todayProvider = { LocalDate.of(2026, 11, 1) },
+            zoneProvider = { ZoneId.of("America/New_York") }
+        )
+        // 10-31 23:30 EDT = 11-01 03:30 UTC，归属 10-31，不计入
+        insertGame("夏令时前夜", 1793503800000L, 1793503800000L + 3600000L, 60)
+        // 11-01 00:30 EDT = 11-01 04:30 UTC，归属 11-01
+        insertGame("回拨前", 1793507400000L, 1793507400000L + 3600000L, 60)
+        // 11-01 02:30 EST = 11-01 07:30 UTC，归属 11-01
+        insertGame("回拨后", 1793518200000L, 1793518200000L + 3600000L, 60)
+        val s = dstRepo.getTodaySummaries().first { it.game.recordCount == 2 }
+        assertEquals(2, s.game.recordCount)
+        assertEquals(120, s.game.totalMinutes)
+    }
+
+    @Test
+    fun gameSummary_negativeDuration_clampedToZero() = runTest {
+        insertGame("负时长游戏", epoch(2026, 11, 15, 20, 0), epoch(2026, 11, 15, 21, 0), -30)
+        val s = repo.getTodaySummaries().first { it.game.recordCount == 1 }
+        assertEquals(1, s.game.recordCount)
+        assertEquals(0, s.game.totalMinutes)
+    }
+
+    @Test
+    fun sleepSummary_negativeDuration_clampedToZero() = runTest {
+        // 结束时间早于开始时间（非法数据）：归属按结束时间（今天），分钟数按 0 计，不出现负数
+        insertSleep(epoch(2026, 11, 15, 10, 0), epoch(2026, 11, 15, 9, 0))
+        val s = repo.getTodaySummaries().first { it.sleep.recordCount == 1 }
+        assertEquals(1, s.sleep.recordCount)
+        assertEquals(0, s.sleep.totalMinutes)
+    }
+
+    @Test
+    fun studyAndFitness_negativeDuration_clampedToZero() = runTest {
+        insertStudy("2026-11-15", -20)
+        insertFitness("2026-11-15", -15)
+        val s = repo.getTodaySummaries().first { it.study.recordCount == 1 && it.fitness.recordCount == 1 }
+        assertEquals(0, s.study.totalMinutes)
+        assertEquals(0, s.fitness.totalMinutes)
+    }
+
+    private fun repoWithZone(zone: ZoneId): ModuleSummaryRepository =
+        ModuleSummaryRepository(
+            studyDao = db.studyRecordDao(),
+            dietDao = db.dietRecordDao(),
+            fitnessDao = db.fitnessRecordDao(),
+            gameDao = db.gameRecordDao(),
+            sleepDao = db.sleepRecordDao(),
+            todayProvider = { today },
+            zoneProvider = { zone }
+        )
 
     // ---- 测试夹具：直接写库（摘要 DAO 为只读，业务写路径属于后续阶段） ----
 

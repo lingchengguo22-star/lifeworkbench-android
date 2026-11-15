@@ -4,8 +4,13 @@ import androidx.room.Room
 import androidx.test.core.app.ApplicationProvider
 import com.example.lifeworkbench.data.entities.TaskEntity
 import com.example.lifeworkbench.ui.screens.TodayPlanViewModel
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.test.StandardTestDispatcher
+import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runTest
+import kotlinx.coroutines.test.setMain
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -24,6 +29,7 @@ import java.time.LocalDate
  * 非法标题拒绝、编辑后数据库更新、删除后数据库消失、完成/取消状态更新、
  * 日期切换后列表更新、未知状态历史任务仍可编辑其他字段、操作失败时正确显示错误。
  */
+@OptIn(ExperimentalCoroutinesApi::class)
 @RunWith(RobolectricTestRunner::class)
 class TodayPlanViewModelTest {
 
@@ -34,8 +40,14 @@ class TodayPlanViewModelTest {
     private val today = LocalDate.of(2026, 11, 15)
     private val tomorrow = LocalDate.of(2026, 11, 16)
 
+    private val testDispatcher = StandardTestDispatcher()
+
     @Before
     fun setUp() {
+        // ViewModel 的 viewModelScope 用 Dispatchers.Main；Robolectric 下真实 Main looper
+        // 处于暂停状态，Room IO 挂起后恢复不到 Main，导致 runTest 10 秒超时。
+        // 把 Main 换成测试调度器，runTest(testDispatcher) 统一驱动。
+        Dispatchers.setMain(testDispatcher)
         db = Room.inMemoryDatabaseBuilder(
             ApplicationProvider.getApplicationContext(),
             AppDatabase::class.java
@@ -46,7 +58,9 @@ class TodayPlanViewModelTest {
 
     @After
     fun tearDown() {
-        db.close()
+        Dispatchers.resetMain()
+        // 不关闭 db：ViewModel 的 StateFlow 仍在收集 Room Flow，关闭会触发其内部异常；
+        // 内存数据库随测试结束丢弃，不关闭无影响。
     }
 
     private fun task(
@@ -63,7 +77,7 @@ class TodayPlanViewModelTest {
     )
 
     @Test
-    fun tasks_showsSelectedDateTasksOnly() = runTest {
+    fun tasks_showsSelectedDateTasksOnly() = runTest(testDispatcher) {
         db.taskDao().insertTask(task(title = "今日任务", date = "2026-11-15"))
         db.taskDao().insertTask(task(title = "明日任务", date = "2026-11-16"))
         val tasks = viewModel.tasks.first { it.size == 1 }
@@ -71,13 +85,13 @@ class TodayPlanViewModelTest {
     }
 
     @Test
-    fun tasks_emptyList_whenNoTasks() = runTest {
+    fun tasks_emptyList_whenNoTasks() = runTest(testDispatcher) {
         val tasks = viewModel.tasks.first()
         assertTrue(tasks.isEmpty())
     }
 
     @Test
-    fun tasks_sortedTimedFirstByStartMinute() = runTest {
+    fun tasks_sortedTimedFirstByStartMinute() = runTest(testDispatcher) {
         db.taskDao().insertTask(task(title = "无时间", date = "2026-11-15"))
         db.taskDao().insertTask(task(title = "晚任务", date = "2026-11-15", startMinute = 600, endMinute = 660))
         db.taskDao().insertTask(task(title = "早任务", date = "2026-11-15", startMinute = 540, endMinute = 600))
@@ -86,7 +100,7 @@ class TodayPlanViewModelTest {
     }
 
     @Test
-    fun createTask_success_addsTask() = runTest {
+    fun createTask_success_addsTask() = runTest(testDispatcher) {
         viewModel.createTask(
             title = "新任务", description = "描述", planDate = "2026-11-15",
             category = "健身", priority = 1, startMinute = 480, endMinute = 540
@@ -100,7 +114,7 @@ class TodayPlanViewModelTest {
     }
 
     @Test
-    fun createTask_invalidTitle_rejectedAndShowsError() = runTest {
+    fun createTask_invalidTitle_rejectedAndShowsError() = runTest(testDispatcher) {
         viewModel.createTask(
             title = "   ", description = null, planDate = "2026-11-15",
             category = "学习", priority = 2, startMinute = null, endMinute = null
@@ -112,7 +126,7 @@ class TodayPlanViewModelTest {
     }
 
     @Test
-    fun updateTask_persistsChanges() = runTest {
+    fun updateTask_persistsChanges() = runTest(testDispatcher) {
         val id = db.taskDao().insertTask(task(title = "原标题")).toInt()
         val original = db.taskDao().getTaskById(id)!!
         viewModel.updateTask(original.copy(title = "改后标题"))
@@ -122,7 +136,7 @@ class TodayPlanViewModelTest {
     }
 
     @Test
-    fun deleteTask_removesFromDatabase() = runTest {
+    fun deleteTask_removesFromDatabase() = runTest(testDispatcher) {
         val id = db.taskDao().insertTask(task(title = "待删任务")).toInt()
         viewModel.deleteTaskById(id)
         val msg = viewModel.message.first { it != null }
@@ -131,7 +145,7 @@ class TodayPlanViewModelTest {
     }
 
     @Test
-    fun setStatus_completed_updatesTask() = runTest {
+    fun setStatus_completed_updatesTask() = runTest(testDispatcher) {
         val id = db.taskDao().insertTask(task(title = "待办", status = "待开始")).toInt()
         val original = db.taskDao().getTaskById(id)!!
         viewModel.setStatus(original, com.example.lifeworkbench.data.TaskStatus.Completed)
@@ -141,7 +155,7 @@ class TodayPlanViewModelTest {
     }
 
     @Test
-    fun setStatus_cancelled_updatesTask() = runTest {
+    fun setStatus_cancelled_updatesTask() = runTest(testDispatcher) {
         val id = db.taskDao().insertTask(task(title = "待办", status = "进行中")).toInt()
         val original = db.taskDao().getTaskById(id)!!
         viewModel.setStatus(original, com.example.lifeworkbench.data.TaskStatus.Cancelled)
@@ -151,7 +165,7 @@ class TodayPlanViewModelTest {
     }
 
     @Test
-    fun selectDate_updatesList() = runTest {
+    fun selectDate_updatesList() = runTest(testDispatcher) {
         db.taskDao().insertTask(task(title = "今日任务", date = "2026-11-15"))
         db.taskDao().insertTask(task(title = "明日任务", date = "2026-11-16"))
         val first = viewModel.tasks.first { it.size == 1 }
@@ -162,7 +176,7 @@ class TodayPlanViewModelTest {
     }
 
     @Test
-    fun unknownStatusTask_editOtherFields_succeedsAndPreservesStatus() = runTest {
+    fun unknownStatusTask_editOtherFields_succeedsAndPreservesStatus() = runTest(testDispatcher) {
         val id = db.taskDao().insertTask(task(title = "历史任务", status = "已删除")).toInt()
         val original = db.taskDao().getTaskById(id)!!
         viewModel.updateTask(original.copy(title = "改后标题"))
@@ -174,7 +188,7 @@ class TodayPlanViewModelTest {
     }
 
     @Test
-    fun operationFailure_showsErrorNotFakeSuccess() = runTest {
+    fun operationFailure_showsErrorNotFakeSuccess() = runTest(testDispatcher) {
         // 更新不存在的任务：Repository 返回 NotFound，ViewModel 必须展示错误而非假装成功
         val ghost = task(title = "不存在").copy(id = 9999)
         viewModel.updateTask(ghost)

@@ -9,6 +9,7 @@ import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performTextClearance
 import androidx.compose.ui.test.performTextInput
 import androidx.test.core.app.ApplicationProvider
@@ -106,7 +107,8 @@ class MainActivityUiTest {
         composeTestRule.onNodeWithText("模块摘要").assertIsDisplayed()
         composeTestRule.onNodeWithTag("todayCard").assertIsDisplayed()
         composeTestRule.onNodeWithTag("moduleCard_学习").assertIsDisplayed()
-        composeTestRule.onNodeWithTag("moduleCard_睡眠").assertIsDisplayed()
+        // 底部模块卡片在小屏上需滚动后才可见
+        composeTestRule.onNodeWithTag("moduleCard_睡眠").performScrollTo().assertIsDisplayed()
     }
 
     // ---- 场景 2：今日页面正常显示 ----
@@ -219,10 +221,12 @@ class MainActivityUiTest {
         composeTestRule.onNodeWithText("明天任务").assertDoesNotExist()
         composeTestRule.onNodeWithTag("nextDay").performClick()
         composeTestRule.waitUntilExactlyOneExists(hasText("明天任务"), 5000)
-        composeTestRule.onNodeWithText("今天任务").assertDoesNotExist()
+        // 列表切换是异步的（Room Flow 重新发射 + 重组）：等旧日期任务消失，而非立即断言
+        composeTestRule.waitUntilDoesNotExist(hasText("今天任务"), 5000)
         // 回到今天
         composeTestRule.onNodeWithTag("prevDay").performClick()
         composeTestRule.waitUntilExactlyOneExists(hasText("今天任务"), 5000)
+        composeTestRule.waitUntilDoesNotExist(hasText("明天任务"), 5000)
     }
 
     // ---- 场景 11：点首页今日卡片，跳到今日计划 ----

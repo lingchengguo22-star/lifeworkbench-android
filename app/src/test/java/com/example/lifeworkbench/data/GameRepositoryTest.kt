@@ -240,14 +240,18 @@ class GameRepositoryTest {
     }
 
     @Test(expected = CancellationException::class)
-    fun createRecord_cancellationException_propagates() = runBlocking {
-        val cancellingRepo = GameRepository(CancellingGameDao()) { zone }
-        cancellingRepo.createRecord(record())
+    fun createRecord_cancellationException_propagates() {
+        runBlocking {
+            val cancellingRepo = GameRepository(CancellingGameDao()) { zone }
+            cancellingRepo.createRecord(record())
+        }
     }
 
     @Test(expected = CancellationException::class)
-    fun getRecordById_cancellationException_propagates() = runBlocking {
-        val cancellingRepo = GameRepository(CancellingGameDao()) { zone }
-        cancellingRepo.getRecordById(1)
+    fun getRecordById_cancellationException_propagates() {
+        runBlocking {
+            val cancellingRepo = GameRepository(CancellingGameDao()) { zone }
+            cancellingRepo.getRecordById(1)
+        }
     }
 }

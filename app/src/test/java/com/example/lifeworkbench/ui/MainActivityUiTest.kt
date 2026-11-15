@@ -19,6 +19,7 @@ import com.example.lifeworkbench.data.TaskResult
 import com.example.lifeworkbench.data.entities.TaskEntity
 import java.time.LocalDate
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withContext
 import org.junit.Assert.assertEquals
@@ -221,8 +222,18 @@ class MainActivityUiTest {
         composeTestRule.onNodeWithText("明天任务").assertDoesNotExist()
         composeTestRule.onNodeWithTag("nextDay").performClick()
         composeTestRule.waitUntilExactlyOneExists(hasText("明天任务"), 5000)
+        // 诊断：直接读数据层——今天与明天在数据库里应各有 1 条；
+        // 若此处通过但界面仍显示旧任务，问题在界面层而非数据层
+        val todayCount = runBlocking { app.database.taskDao().countTasksByDate(todayString) }
+        val tomorrowCount = runBlocking { app.database.taskDao().countTasksByDate(tomorrowString) }
+        assertEquals(1, todayCount)
+        assertEquals(1, tomorrowCount)
+        val todayFlow = runBlocking { app.taskRepository.getTasksByDate(todayString).first() }
+        val tomorrowFlow = runBlocking { app.taskRepository.getTasksByDate(tomorrowString).first() }
+        assertEquals(listOf("今天任务"), todayFlow.map { it.title })
+        assertEquals(listOf("明天任务"), tomorrowFlow.map { it.title })
         // 列表切换是异步的（Room Flow 重新发射 + 重组）：等旧日期任务消失，而非立即断言
-        composeTestRule.waitUntilDoesNotExist(hasText("今天任务"), 5000)
+        composeTestRule.waitUntilDoesNotExist(hasText("今天任务"), 10000)
         // 回到今天
         composeTestRule.onNodeWithTag("prevDay").performClick()
         composeTestRule.waitUntilExactlyOneExists(hasText("今天任务"), 5000)

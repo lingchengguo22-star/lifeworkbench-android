@@ -8,6 +8,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.testTag
 import androidx.navigation.NavController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
@@ -41,17 +42,20 @@ fun MainScreen() {
                 NavigationBarItem(
                     selected = selectedTab == BottomTab.HOME,
                     onClick = { navController.navigateBottomTab("home") },
-                    icon = { Text("首页") }
+                    icon = { Text("首页") },
+                    modifier = Modifier.testTag("navHome")
                 )
                 NavigationBarItem(
                     selected = selectedTab == BottomTab.TODAY,
                     onClick = { navController.navigateBottomTab("today") },
-                    icon = { Text("今日") }
+                    icon = { Text("今日") },
+                    modifier = Modifier.testTag("navToday")
                 )
                 NavigationBarItem(
                     selected = selectedTab == BottomTab.SETTINGS,
                     onClick = { navController.navigateBottomTab("settings") },
-                    icon = { Text("设置") }
+                    icon = { Text("设置") },
+                    modifier = Modifier.testTag("navSettings")
                 )
             }
         }

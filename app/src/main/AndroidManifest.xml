@@ -3,6 +3,7 @@
     package="com.example.lifeworkbench">
     <!-- 本地应用，不声明网络权限，确保数据绝对离线 -->
     <application
+        android:name=".LifeWorkbenchApp"
         android:allowBackup="true"
         android:icon="@drawable/ic_launcher_foreground"
         android:label="生活工作台"

@@ -196,14 +196,18 @@ class FitnessRepositoryTest {
     }
 
     @Test(expected = CancellationException::class)
-    fun createRecord_cancellationException_propagates() = runBlocking {
-        val cancellingRepo = FitnessRepository(CancellingFitnessDao())
-        cancellingRepo.createRecord(record())
+    fun createRecord_cancellationException_propagates() {
+        runBlocking {
+            val cancellingRepo = FitnessRepository(CancellingFitnessDao())
+            cancellingRepo.createRecord(record())
+        }
     }
 
     @Test(expected = CancellationException::class)
-    fun getRecordById_cancellationException_propagates() = runBlocking {
-        val cancellingRepo = FitnessRepository(CancellingFitnessDao())
-        cancellingRepo.getRecordById(1)
+    fun getRecordById_cancellationException_propagates() {
+        runBlocking {
+            val cancellingRepo = FitnessRepository(CancellingFitnessDao())
+            cancellingRepo.getRecordById(1)
+        }
     }
 }

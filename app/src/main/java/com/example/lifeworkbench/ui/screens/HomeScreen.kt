@@ -2,10 +2,13 @@ package com.example.lifeworkbench.ui.screens
 
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
@@ -33,7 +36,11 @@ fun HomeScreen(
     val stats by viewModel.todayStats.collectAsState()
     val summaries by viewModel.summaries.collectAsState()
 
-    Column(modifier = Modifier.padding(16.dp).fillMaxSize()) {
+    // 首页内容在小屏上可能超出可视高度，允许纵向滚动（否则底部模块卡片看不到也点不到）
+    val scrollState = rememberScrollState()
+    Column(
+        modifier = Modifier.padding(16.dp).fillMaxSize().verticalScroll(scrollState)
+    ) {
         Text("首页总览", style = MaterialTheme.typography.headlineMedium)
         Spacer(modifier = Modifier.height(16.dp))
 

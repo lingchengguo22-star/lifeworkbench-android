@@ -198,14 +198,18 @@ class DietRepositoryTest {
     }
 
     @Test(expected = CancellationException::class)
-    fun createRecord_cancellationException_propagates() = runBlocking {
-        val cancellingRepo = DietRepository(CancellingDietDao())
-        cancellingRepo.createRecord(record())
+    fun createRecord_cancellationException_propagates() {
+        runBlocking {
+            val cancellingRepo = DietRepository(CancellingDietDao())
+            cancellingRepo.createRecord(record())
+        }
     }
 
     @Test(expected = CancellationException::class)
-    fun getRecordById_cancellationException_propagates() = runBlocking {
-        val cancellingRepo = DietRepository(CancellingDietDao())
-        cancellingRepo.getRecordById(1)
+    fun getRecordById_cancellationException_propagates() {
+        runBlocking {
+            val cancellingRepo = DietRepository(CancellingDietDao())
+            cancellingRepo.getRecordById(1)
+        }
     }
 }

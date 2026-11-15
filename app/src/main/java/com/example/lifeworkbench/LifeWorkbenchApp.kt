@@ -2,7 +2,12 @@ package com.example.lifeworkbench
 
 import android.app.Application
 import com.example.lifeworkbench.data.AppDatabase
+import com.example.lifeworkbench.data.DietRepository
+import com.example.lifeworkbench.data.FitnessRepository
+import com.example.lifeworkbench.data.GameRepository
 import com.example.lifeworkbench.data.ModuleSummaryRepository
+import com.example.lifeworkbench.data.SleepRepository
+import com.example.lifeworkbench.data.StudyRepository
 import com.example.lifeworkbench.data.TaskRepository
 
 /**
@@ -32,4 +37,19 @@ class LifeWorkbenchApp : Application() {
             sleepDao = database.sleepRecordDao()
         )
     }
+
+    /** 学习记录数据统一入口（阶段 3.0）。 */
+    val studyRepository: StudyRepository by lazy { StudyRepository(database.studyRecordDao()) }
+
+    /** 健身记录数据统一入口（阶段 3.0）。 */
+    val fitnessRepository: FitnessRepository by lazy { FitnessRepository(database.fitnessRecordDao()) }
+
+    /** 饮食记录数据统一入口（阶段 3.0）。 */
+    val dietRepository: DietRepository by lazy { DietRepository(database.dietRecordDao()) }
+
+    /** 游戏记录数据统一入口（阶段 3.0）。 */
+    val gameRepository: GameRepository by lazy { GameRepository(database.gameRecordDao()) }
+
+    /** 睡眠记录数据统一入口（阶段 3.0）。 */
+    val sleepRepository: SleepRepository by lazy { SleepRepository(database.sleepRecordDao()) }
 }

@@ -14,6 +14,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
@@ -23,6 +24,13 @@ import java.util.Locale
 
 /** 今日计划页面的操作结果消息（成功或失败均展示，不假装成功）。 */
 data class TodayPlanMessage(val text: String, val isError: Boolean)
+
+/** 今日计划页面的单一界面状态（日期 + 该日期任务列表 + 提示消息，一次原子发射）。 */
+data class TodayPlanUiState(
+    val selectedDate: LocalDate,
+    val tasks: List<TaskEntity>,
+    val message: TodayPlanMessage?
+)
 
 /**
  * 今日计划 ViewModel（V1.1 阶段 2.1）。
@@ -57,6 +65,22 @@ class TodayPlanViewModel(
 
     private val _message = MutableStateFlow<TodayPlanMessage?>(null)
     val message: StateFlow<TodayPlanMessage?> = _message.asStateFlow()
+
+    /**
+     * 今日计划页面的单一界面状态：日期、任务列表、提示消息合并为一次原子发射。
+     *
+     * 之前界面分别 collectAsState() 三个独立 StateFlow：切日期时 selectedDate
+     * 立即变、tasks 随后才变，两次重组之间界面处于“新日期 + 旧任务”的撕裂态，
+     * 在 Robolectric 下旧任务节点会滞留不消失；合并后一次发射同时带上新日期
+     * 与新任务列表，界面只按完整的新状态重组一次。
+     */
+    val uiState: StateFlow<TodayPlanUiState> = combine(
+        selectedDate, tasks, message
+    ) { date, taskList, msg -> TodayPlanUiState(date, taskList, msg) }
+        .stateIn(
+            viewModelScope, SharingStarted.Eagerly,
+            TodayPlanUiState(todayProvider(), emptyList(), null)
+        )
 
     fun selectDate(date: LocalDate) {
         _selectedDate.value = date

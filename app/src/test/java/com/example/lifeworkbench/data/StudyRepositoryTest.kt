@@ -2,7 +2,9 @@ package com.example.lifeworkbench.data
 
 import androidx.room.Room
 import androidx.test.core.app.ApplicationProvider
+import com.example.lifeworkbench.data.entities.StudyRecordDao
 import com.example.lifeworkbench.data.entities.StudyRecordEntity
+import kotlinx.coroutines.flow.emptyFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
 import org.junit.After
@@ -130,28 +132,37 @@ class StudyRepositoryTest {
         assertEquals(listOf("B"), repo.getAllRecords().first().map { it.content })
     }
 
+    /**
+     * 数据库异常测试替身：DAO 抛异常时 Repository 必须返回 Database 错误，不抛到调用方。
+     * （说明：Room 关闭后会重开连接而非抛异常，因此不能用“关闭数据库”模拟异常；
+     * 用抛异常的 DAO 替身直接验证 Repository 的异常包装。）
+     */
+    private class ThrowingStudyDao : StudyRecordDao {
+        override fun getRecordsByDate(date: String) = emptyFlow<List<StudyRecordEntity>>()
+        override fun getAllRecords() = emptyFlow<List<StudyRecordEntity>>()
+        override suspend fun getRecordById(id: Int): StudyRecordEntity? =
+            throw RuntimeException("模拟数据库异常")
+        override suspend fun insertRecord(record: StudyRecordEntity): Long =
+            throw RuntimeException("模拟数据库异常")
+        override suspend fun updateRecord(record: StudyRecordEntity): Int =
+            throw RuntimeException("模拟数据库异常")
+        override suspend fun deleteRecord(record: StudyRecordEntity): Int =
+            throw RuntimeException("模拟数据库异常")
+        override suspend fun deleteRecordById(id: Int): Int =
+            throw RuntimeException("模拟数据库异常")
+    }
+
     @Test
-    fun createRecord_databaseClosed_returnsDatabaseError() = runBlocking {
-        // 用独立的数据库实例模拟数据库异常：关闭后访问应返回 Database 错误，不抛到调用方
-        val brokenDb = Room.inMemoryDatabaseBuilder(
-            ApplicationProvider.getApplicationContext(),
-            AppDatabase::class.java
-        ).allowMainThreadQueries().build()
-        val brokenRepo = StudyRepository(brokenDb.studyRecordDao())
-        brokenDb.close()
+    fun createRecord_daoThrows_returnsDatabaseError() = runBlocking {
+        val brokenRepo = StudyRepository(ThrowingStudyDao())
         val result = brokenRepo.createRecord(record())
         assertTrue(result is RepoResult.Failure)
         assertTrue((result as RepoResult.Failure).error is RepoError.Database)
     }
 
     @Test
-    fun getRecordById_databaseClosed_returnsDatabaseError() = runBlocking {
-        val brokenDb = Room.inMemoryDatabaseBuilder(
-            ApplicationProvider.getApplicationContext(),
-            AppDatabase::class.java
-        ).allowMainThreadQueries().build()
-        val brokenRepo = StudyRepository(brokenDb.studyRecordDao())
-        brokenDb.close()
+    fun getRecordById_daoThrows_returnsDatabaseError() = runBlocking {
+        val brokenRepo = StudyRepository(ThrowingStudyDao())
         val result = brokenRepo.getRecordById(1)
         assertTrue(result is RepoResult.Failure)
         assertTrue((result as RepoResult.Failure).error is RepoError.Database)

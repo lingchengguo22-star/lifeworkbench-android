@@ -1,0 +1,39 @@
+name: Android Unit Test Report
+
+# 只做一件事：跑完整单元测试集，并把 JUnit XML 报告存为产物，供验收核对实际执行数量。
+# 触发方式：手动（Actions 页面 → 本工作流 → Run workflow → 选择 v1.1-dev 分支）。
+# 不随 push 自动运行，避免与主工作流重复跑测试。
+on:
+  workflow_dispatch:
+
+jobs:
+  test-report:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Decode debug keystore
+        run: base64 -d app/debug.keystore.b64 > app/debug.keystore
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - name: Accept licenses and install SDK 34
+        run: |
+          echo "ANDROID_HOME=$ANDROID_HOME"
+          ls "$ANDROID_HOME/cmdline-tools"
+          yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --licenses
+          "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" "platforms;android-34" "build-tools;34.0.0"
+      - name: Download Gradle 8.0
+        run: |
+          curl -sL -o gradle-8.0-bin.zip https://services.gradle.org/distributions/gradle-8.0-bin.zip
+          unzip -q gradle-8.0-bin.zip
+      - name: Run unit tests
+        run: ./gradle-8.0/bin/gradle testDebugUnitTest --no-daemon --stacktrace
+      - name: Upload JUnit XML
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: junit-test-results
+          path: app/build/test-results/testDebugUnitTest/*.xml
+          retention-days: 30

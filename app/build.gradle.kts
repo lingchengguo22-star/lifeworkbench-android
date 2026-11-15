@@ -103,4 +103,10 @@ dependencies {
     testImplementation("androidx.compose.ui:ui-test-junit4:1.4.0")
     testImplementation("androidx.compose.ui:ui-test-manifest:1.4.0")
     testImplementation("androidx.test.ext:junit:1.1.5")
+    // 插桩测试（补充验收任务 2）：只在模拟器/真机上运行，不走 testDebugUnitTest
+    androidTestImplementation("androidx.compose.ui:ui-test-junit4:1.4.0")
+    androidTestImplementation("androidx.compose.ui:ui-test-manifest:1.4.0")
+    androidTestImplementation("androidx.test.ext:junit:1.1.5")
+    androidTestImplementation("androidx.test:runner:1.5.2")
+    androidTestImplementation("androidx.test.uiautomator:uiautomator:2.2.0")
 }

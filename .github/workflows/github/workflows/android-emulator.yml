@@ -1,0 +1,56 @@
+# 模拟器插桩测试（补充验收任务 2）
+#
+# 用途：在 GitHub Actions 的模拟器上运行 connectedDebugAndroidTest，
+# 验证最终 APK 的首次安装、数据库创建、任务增删改查与进程杀死后重开的持久化。
+# 本地 VM 没有硬件虚拟化，跑不了模拟器；CI 的 Linux runner 有 KVM，可跑。
+#
+# 注意：工作流文件无法经 API 推送（403），请从 GitHub 网页端添加：
+# 仓库 → Actions → New workflow → set up a workflow yourself，
+# 文件名填 .github/workflows/android-emulator.yml，把本文件内容完整粘贴进去。
+name: Android Emulator Instrumented Tests
+
+on:
+  push:
+    branches: [v1.1-dev]
+    paths:
+      - 'app/src/androidTest/**'
+      - '.github/workflows/android-emulator.yml'
+  workflow_dispatch:
+
+jobs:
+  instrumented-test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Decode debug keystore
+        run: base64 -d app/debug.keystore.b64 > app/debug.keystore
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      - name: Accept licenses and install SDK 34 + emulator
+        run: |
+          yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --licenses
+          "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" "platforms;android-34" "build-tools;34.0.0" "platform-tools" "emulator" "system-images;android-34;google_apis;x86_64"
+
+      - name: Download Gradle 8.0
+        run: |
+          curl -sL -o gradle-8.0-bin.zip https://services.gradle.org/distributions/gradle-8.0-bin.zip
+          unzip -q gradle-8.0-bin.zip
+
+      - name: Run instrumented tests on emulator
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 34
+          target: google_apis
+          arch: x86_64
+          profile: pixel_6
+          force-avd-creation: false
+          emulator-options: -no-snapshot-save -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim
+          disable-animations: true
+          script: ./gradle-8.0/bin/gradle connectedDebugAndroidTest --no-daemon --stacktrace

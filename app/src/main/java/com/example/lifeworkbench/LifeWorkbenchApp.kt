@@ -2,6 +2,7 @@ package com.example.lifeworkbench
 
 import android.app.Application
 import com.example.lifeworkbench.data.AppDatabase
+import com.example.lifeworkbench.data.ModuleSummaryRepository
 import com.example.lifeworkbench.data.TaskRepository
 
 /**
@@ -20,4 +21,15 @@ class LifeWorkbenchApp : Application() {
 
     /** 任务数据统一入口。 */
     val taskRepository: TaskRepository by lazy { TaskRepository(database.taskDao()) }
+
+    /** 五大业务模块只读摘要入口（阶段 2.2）。 */
+    val summaryRepository: ModuleSummaryRepository by lazy {
+        ModuleSummaryRepository(
+            studyDao = database.studyRecordDao(),
+            dietDao = database.dietRecordDao(),
+            fitnessDao = database.fitnessRecordDao(),
+            gameDao = database.gameRecordDao(),
+            sleepDao = database.sleepRecordDao()
+        )
+    }
 }

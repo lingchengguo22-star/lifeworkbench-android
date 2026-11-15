@@ -9,6 +9,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.lifeworkbench.LifeWorkbenchApp
@@ -44,14 +45,23 @@ fun TodayPlanScreen() {
 
         // 日期切换栏
         Row(verticalAlignment = Alignment.CenterVertically) {
-            TextButton(onClick = { viewModel.previousDay() }) { Text("‹ 前一天") }
+            TextButton(
+                onClick = { viewModel.previousDay() },
+                modifier = Modifier.testTag("prevDay")
+            ) { Text("‹ 前一天") }
             Text(
                 text = selectedDate.format(TodayPlanViewModel.DATE_DISPLAY_FORMAT),
                 style = MaterialTheme.typography.titleMedium,
                 modifier = Modifier.weight(1f)
             )
-            TextButton(onClick = { viewModel.nextDay() }) { Text("后一天 ›") }
-            TextButton(onClick = { viewModel.goToToday() }) { Text("今天") }
+            TextButton(
+                onClick = { viewModel.nextDay() },
+                modifier = Modifier.testTag("nextDay")
+            ) { Text("后一天 ›") }
+            TextButton(
+                onClick = { viewModel.goToToday() },
+                modifier = Modifier.testTag("goToday")
+            ) { Text("今天") }
         }
         Spacer(modifier = Modifier.height(8.dp))
 
@@ -117,7 +127,7 @@ fun TodayPlanScreen() {
         Spacer(modifier = Modifier.height(12.dp))
         Button(
             onClick = { editingTask = null; showForm = true },
-            modifier = Modifier.fillMaxWidth()
+            modifier = Modifier.fillMaxWidth().testTag("newTaskButton")
         ) { Text("新建任务") }
     }
 
@@ -163,12 +173,18 @@ fun TodayPlanScreen() {
             title = { Text("删除任务") },
             text = { Text("确定删除「${task.title}」吗？删除后无法恢复。") },
             confirmButton = {
-                TextButton(onClick = { viewModel.deleteTaskById(task.id); deleteTarget = null }) {
+                TextButton(
+                    onClick = { viewModel.deleteTaskById(task.id); deleteTarget = null },
+                    modifier = Modifier.testTag("deleteConfirm")
+                ) {
                     Text("删除")
                 }
             },
             dismissButton = {
-                TextButton(onClick = { deleteTarget = null }) { Text("取消") }
+                TextButton(
+                    onClick = { deleteTarget = null },
+                    modifier = Modifier.testTag("deleteCancel")
+                ) { Text("取消") }
             }
         )
     }
@@ -210,18 +226,33 @@ private fun TaskItem(
                 style = MaterialTheme.typography.bodySmall
             )
             Row(modifier = Modifier.padding(top = 8.dp)) {
-                TextButton(onClick = onEdit) { Text("编辑") }
-                TextButton(onClick = onDelete) { Text("删除") }
+                TextButton(
+                    onClick = onEdit,
+                    modifier = Modifier.testTag("taskEdit_${task.id}")
+                ) { Text("编辑") }
+                TextButton(
+                    onClick = onDelete,
+                    modifier = Modifier.testTag("taskDelete_${task.id}")
+                ) { Text("删除") }
                 // 状态操作：仅对未完成/未取消的任务展示（未知状态也可改成合法状态）
                 val showActions = status is TaskStatus.Pending ||
                     status is TaskStatus.InProgress ||
                     status is TaskStatus.Unknown
                 if (showActions) {
                     if (status is TaskStatus.Pending || status is TaskStatus.Unknown) {
-                        TextButton(onClick = { onSetStatus(TaskStatus.InProgress) }) { Text("进行中") }
+                        TextButton(
+                            onClick = { onSetStatus(TaskStatus.InProgress) },
+                            modifier = Modifier.testTag("taskStart_${task.id}")
+                        ) { Text("进行中") }
                     }
-                    TextButton(onClick = { onSetStatus(TaskStatus.Completed) }) { Text("完成") }
-                    TextButton(onClick = { onSetStatus(TaskStatus.Cancelled) }) { Text("取消") }
+                    TextButton(
+                        onClick = { onSetStatus(TaskStatus.Completed) },
+                        modifier = Modifier.testTag("taskComplete_${task.id}")
+                    ) { Text("完成") }
+                    TextButton(
+                        onClick = { onSetStatus(TaskStatus.Cancelled) },
+                        modifier = Modifier.testTag("taskCancel_${task.id}")
+                    ) { Text("取消") }
                 }
             }
         }
@@ -263,15 +294,15 @@ private fun TaskFormDialog(
             Column {
                 OutlinedTextField(
                     value = title, onValueChange = { title = it },
-                    label = { Text("标题") }, modifier = Modifier.fillMaxWidth()
+                    label = { Text("标题") }, modifier = Modifier.fillMaxWidth().testTag("formTitle")
                 )
                 OutlinedTextField(
                     value = description, onValueChange = { description = it },
-                    label = { Text("描述（可选）") }, modifier = Modifier.fillMaxWidth()
+                    label = { Text("描述（可选）") }, modifier = Modifier.fillMaxWidth().testTag("formDescription")
                 )
                 OutlinedTextField(
                     value = planDate, onValueChange = { planDate = it },
-                    label = { Text("日期（YYYY-MM-DD）") }, modifier = Modifier.fillMaxWidth()
+                    label = { Text("日期（YYYY-MM-DD）") }, modifier = Modifier.fillMaxWidth().testTag("formDate")
                 )
                 Spacer(modifier = Modifier.height(8.dp))
                 Text("分类", style = MaterialTheme.typography.bodyMedium)
@@ -304,11 +335,11 @@ private fun TaskFormDialog(
                 if (hasTime) {
                     OutlinedTextField(
                         value = startText, onValueChange = { startText = it },
-                        label = { Text("开始时间（HH:MM）") }, modifier = Modifier.fillMaxWidth()
+                        label = { Text("开始时间（HH:MM）") }, modifier = Modifier.fillMaxWidth().testTag("formStartTime")
                     )
                     OutlinedTextField(
                         value = endText, onValueChange = { endText = it },
-                        label = { Text("结束时间（HH:MM）") }, modifier = Modifier.fillMaxWidth()
+                        label = { Text("结束时间（HH:MM）") }, modifier = Modifier.fillMaxWidth().testTag("formEndTime")
                     )
                 }
                 if (!isNew && initialTask != null) {
@@ -334,7 +365,8 @@ private fun TaskFormDialog(
             }
         },
         confirmButton = {
-            TextButton(onClick = {
+            TextButton(
+                onClick = {
                 // 仅做输入格式解析；业务校验（成对、范围、先后、分类、标题等）由 Repository/Validator 执行
                 val startMinute: Int?
                 val endMinute: Int?
@@ -368,10 +400,15 @@ private fun TaskFormDialog(
                     endMinute = endMinute
                 )
                 onSave(task, isNew)
-            }) { Text("保存") }
+            },
+                modifier = Modifier.testTag("formSave")
+            ) { Text("保存") }
         },
         dismissButton = {
-            TextButton(onClick = onDismiss) { Text("取消") }
+            TextButton(
+                onClick = onDismiss,
+                modifier = Modifier.testTag("formCancel")
+            ) { Text("取消") }
         }
     )
 }

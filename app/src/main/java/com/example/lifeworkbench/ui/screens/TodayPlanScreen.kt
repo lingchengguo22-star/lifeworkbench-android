@@ -30,9 +30,11 @@ import java.time.LocalDate
 fun TodayPlanScreen() {
     val app = LocalContext.current.applicationContext as LifeWorkbenchApp
     val viewModel: TodayPlanViewModel = viewModel(factory = TodayPlanViewModel.Factory(app.taskRepository))
-    val selectedDate by viewModel.selectedDate.collectAsState()
-    val tasks by viewModel.tasks.collectAsState()
-    val message by viewModel.message.collectAsState()
+    // 单一界面状态：日期、任务、提示一次原子发射，避免切日期时“新日期 + 旧任务”的撕裂重组
+    val uiState by viewModel.uiState.collectAsState()
+    val selectedDate = uiState.selectedDate
+    val tasks = uiState.tasks
+    val message = uiState.message
 
     var showForm by remember { mutableStateOf(false) }
     var editingTask by remember { mutableStateOf<TaskEntity?>(null) }

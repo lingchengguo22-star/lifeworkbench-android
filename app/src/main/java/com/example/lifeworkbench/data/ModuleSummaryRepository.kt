@@ -44,11 +44,15 @@ data class ModuleSummaries(
  * 日期归属规则（经时间字段及时区审查）：
  * - 学习 / 健身 / 饮食：记录自带 date 字段（YYYY-MM-DD），直接按该日期归属。
  * - 游戏：startTime 为 epoch 毫秒，按设备当前时区换算为本地日期归属
- *   （一次游戏属于它开始的那一天）。
+ *   （一次游戏属于它开始的那一天；跨午夜的整场游戏仍归开始日）。
  * - 睡眠：startTime/endTime 为 epoch 毫秒，按设备当前时区换算；
  *   归属日期取 endTime 的本地日期（即“今早醒来的那次睡眠”属于今天），
  *   endTime 为空（计时中）时取 startTime 的本地日期。
  *   睡眠分钟数仅统计已结束的记录（endTime 不为空），按 (endTime - startTime) / 60000 计算。
+ * - 时长不为负：单条记录的时长（入库的 durationMinutes，或睡眠的计算值）
+ *   若为负数，按 0 计（非法数据不污染汇总；见补充任务 3 审查）。
+ *
+ * 时区以 zoneProvider 提供（默认设备当前时区），便于用固定时区验证夏令时边界。
  */
 class ModuleSummaryRepository(
     private val studyDao: StudyRecordDao,
@@ -56,7 +60,8 @@ class ModuleSummaryRepository(
     private val fitnessDao: FitnessRecordDao,
     private val gameDao: GameRecordDao,
     private val sleepDao: SleepRecordDao,
-    private val todayProvider: () -> LocalDate = { LocalDate.now() }
+    private val todayProvider: () -> LocalDate = { LocalDate.now() },
+    private val zoneProvider: () -> ZoneId = { ZoneId.systemDefault() }
 ) {
     fun getTodaySummaries(): Flow<ModuleSummaries> {
         val today = todayProvider().toString()
@@ -73,11 +78,11 @@ class ModuleSummaryRepository(
             ModuleSummaries(
                 study = StudySummary(
                     recordCount = study.size,
-                    totalMinutes = study.sumOf { it.durationMinutes }
+                    totalMinutes = study.sumOf { nonNegative(it.durationMinutes) }
                 ),
                 fitness = FitnessSummary(
                     recordCount = fitness.size,
-                    totalMinutes = fitness.sumOf { it.durationMinutes ?: 0 }
+                    totalMinutes = fitness.sumOf { nonNegative(it.durationMinutes ?: 0) }
                 ),
                 diet = DietSummary(
                     mealCount = diet.size,
@@ -85,19 +90,22 @@ class ModuleSummaryRepository(
                 ),
                 game = GameSummary(
                     recordCount = todayGames.size,
-                    totalMinutes = todayGames.sumOf { it.durationMinutes }
+                    totalMinutes = todayGames.sumOf { nonNegative(it.durationMinutes) }
                 ),
                 sleep = SleepSummary(
                     recordCount = todaySleeps.size,
                     totalMinutes = todaySleeps
                         .filter { it.endTime != null }
-                        .sumOf { ((it.endTime!! - it.startTime) / 60000).toInt() }
+                        .sumOf { nonNegative(((it.endTime!! - it.startTime) / 60000).toInt()) }
                 )
             )
         }
     }
 
-    /** epoch 毫秒按设备当前时区换算为本地日期。 */
+    /** epoch 毫秒按提供方时区换算为本地日期。 */
     private fun localDateOf(epochMillis: Long): LocalDate =
-        Instant.ofEpochMilli(epochMillis).atZone(ZoneId.systemDefault()).toLocalDate()
+        Instant.ofEpochMilli(epochMillis).atZone(zoneProvider()).toLocalDate()
+
+    /** 时长不为负：负数按 0 计。 */
+    private fun nonNegative(minutes: Int): Int = maxOf(0, minutes)
 }

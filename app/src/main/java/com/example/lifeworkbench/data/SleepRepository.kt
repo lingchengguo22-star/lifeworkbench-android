@@ -3,6 +3,7 @@ package com.example.lifeworkbench.data
 import com.example.lifeworkbench.data.entities.SleepEntity
 import com.example.lifeworkbench.data.entities.SleepRecordDao
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.CancellationException
 import java.time.LocalDate
 import java.time.ZoneId
 
@@ -13,6 +14,8 @@ import java.time.ZoneId
  * 不开发自动计时（计时器与互斥在 3.5 第二步，须先过独立审查）。
  * 写操作只负责落库与错误处理。
  * 更新/删除按实际影响行数判定：> 0 成功，= 0 返回 NotFound。
+ * 异常处理原则：CancellationException 必须原样向上抛出（不得包装为数据库错误）；
+ * 普通异常转为 Failure(Database)；不吞异常。
  *
  * 日期归属规则（与首页摘要 ModuleSummaryRepository 一致）：
  * 已结束的睡眠归起床日（endTime 所在本地日），计时中的睡眠（endTime 为空）归入睡日
@@ -26,16 +29,25 @@ class SleepRepository(
 
     /** 创建睡眠记录，返回新记录的行 ID。 */
     suspend fun createRecord(record: SleepEntity): RepoResult<Long> {
-        return runCatching { RepoResult.Success(dao.insertRecord(record)) }
-            .getOrElse { RepoResult.Failure(RepoError.Database(it)) }
+        return try {
+            RepoResult.Success(dao.insertRecord(record))
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            RepoResult.Failure(RepoError.Database(e))
+        }
     }
 
     /** 按 ID 获取睡眠记录，查不到返回 NotFound。 */
     suspend fun getRecordById(id: Int): RepoResult<SleepEntity> {
-        return runCatching {
+        return try {
             dao.getRecordById(id)?.let { RepoResult.Success(it) }
                 ?: RepoResult.Failure(RepoError.NotFound(id))
-        }.getOrElse { RepoResult.Failure(RepoError.Database(it)) }
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            RepoResult.Failure(RepoError.Database(e))
+        }
     }
 
     /** 查询全部睡眠记录（实时 Flow，按开始时间升序）。 */
@@ -57,7 +69,7 @@ class SleepRepository(
      * 写入后按实际影响行数判定：> 0 成功，= 0 返回 NotFound。
      */
     suspend fun updateRecord(record: SleepEntity): RepoResult<Unit> {
-        return runCatching {
+        return try {
             val existing = dao.getRecordById(record.id)
             if (existing == null) {
                 RepoResult.Failure(RepoError.NotFound(record.id))
@@ -66,24 +78,36 @@ class SleepRepository(
                 if (rows > 0) RepoResult.Success(Unit)
                 else RepoResult.Failure(RepoError.NotFound(record.id))
             }
-        }.getOrElse { RepoResult.Failure(RepoError.Database(it)) }
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            RepoResult.Failure(RepoError.Database(e))
+        }
     }
 
     /** 删除睡眠记录（按实体）：影响行数 > 0 成功，= 0 返回 NotFound。 */
     suspend fun deleteRecord(record: SleepEntity): RepoResult<Unit> {
-        return runCatching {
+        return try {
             val rows = dao.deleteRecord(record)
             if (rows > 0) RepoResult.Success(Unit)
             else RepoResult.Failure(RepoError.NotFound(record.id))
-        }.getOrElse { RepoResult.Failure(RepoError.Database(it)) }
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            RepoResult.Failure(RepoError.Database(e))
+        }
     }
 
     /** 删除睡眠记录（按 ID）：影响行数 > 0 成功，= 0 返回 NotFound。 */
     suspend fun deleteRecordById(id: Int): RepoResult<Unit> {
-        return runCatching {
+        return try {
             val rows = dao.deleteRecordById(id)
             if (rows > 0) RepoResult.Success(Unit)
             else RepoResult.Failure(RepoError.NotFound(id))
-        }.getOrElse { RepoResult.Failure(RepoError.Database(it)) }
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            RepoResult.Failure(RepoError.Database(e))
+        }
     }
 }

@@ -189,14 +189,18 @@ class StudyRepositoryTest {
     }
 
     @Test(expected = CancellationException::class)
-    fun createRecord_cancellationException_propagates() = runBlocking {
-        val cancellingRepo = StudyRepository(CancellingStudyDao())
-        cancellingRepo.createRecord(record())
+    fun createRecord_cancellationException_propagates() {
+        runBlocking {
+            val cancellingRepo = StudyRepository(CancellingStudyDao())
+            cancellingRepo.createRecord(record())
+        }
     }
 
     @Test(expected = CancellationException::class)
-    fun getRecordById_cancellationException_propagates() = runBlocking {
-        val cancellingRepo = StudyRepository(CancellingStudyDao())
-        cancellingRepo.getRecordById(1)
+    fun getRecordById_cancellationException_propagates() {
+        runBlocking {
+            val cancellingRepo = StudyRepository(CancellingStudyDao())
+            cancellingRepo.getRecordById(1)
+        }
     }
 }

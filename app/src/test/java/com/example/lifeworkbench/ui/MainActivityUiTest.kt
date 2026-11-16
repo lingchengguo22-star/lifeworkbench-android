@@ -268,10 +268,10 @@ class MainActivityUiTest {
         composeTestRule.onNodeWithTag("navSettings").assertIsSelected()
         composeTestRule.onNodeWithTag("navHome").assertIsNotSelected()
         composeTestRule.onNodeWithTag("navToday").assertIsNotSelected()
-        // 进入模块占位页：三项均不选中
+        // 进入模块占位页：三项均不选中（学习已在 3.1 实现，改用仍占位的健身）
         composeTestRule.onNodeWithTag("navHome").performClick()
         composeTestRule.waitUntilExactlyOneExists(hasText("首页总览"), 5000)
-        composeTestRule.onNodeWithTag("moduleCard_学习").performClick()
+        composeTestRule.onNodeWithTag("moduleCard_健身").performClick()
         composeTestRule.waitUntilExactlyOneExists(hasText("该模块尚未开发，敬请期待。"), 5000)
         composeTestRule.onNodeWithTag("navHome").assertIsNotSelected()
         composeTestRule.onNodeWithTag("navToday").assertIsNotSelected()

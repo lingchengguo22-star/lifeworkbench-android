@@ -20,7 +20,7 @@ import org.robolectric.RobolectricTestRunner
  * StudyRepository 测试（V1.1 阶段 3.0）。
  * 真实 Room 内存数据库 + Robolectric：合法数据读写、不存在的记录、
  * 更新/删除影响行数、数据库异常、Flow 数据刷新、多日期数据隔离。
- * 3.0 不做业务校验（StudyValidator 在 3.1 建立）。
+ * 3.1 接入 StudyValidator：写操作先校验，不通过不写入（见本文件末尾 5 项测试）。
  */
 @RunWith(RobolectricTestRunner::class)
 class StudyRepositoryTest {
@@ -202,5 +202,52 @@ class StudyRepositoryTest {
             val cancellingRepo = StudyRepository(CancellingStudyDao())
             cancellingRepo.getRecordById(1)
         }
+    }
+
+    // ---- 阶段 3.1：Repository 写操作接入 StudyValidator ----
+
+    @Test
+    fun createRecord_blankContent_returnsValidationFailedAndDoesNotWrite() = runBlocking {
+        val result = repo.createRecord(record(content = "   "))
+        assertTrue(result is RepoResult.Failure)
+        val error = (result as RepoResult.Failure).error
+        assertTrue(error is RepoError.ValidationFailed)
+        assertTrue((error as RepoError.ValidationFailed).messages.contains("学习内容不能为空"))
+        assertEquals(0, repo.getRecordsByDate("2026-11-15").first().size)
+    }
+
+    @Test
+    fun createRecord_invalidDuration_returnsValidationFailedAndDoesNotWrite() = runBlocking {
+        val result = repo.createRecord(record(durationMinutes = 0))
+        assertTrue(result is RepoResult.Failure)
+        assertTrue((result as RepoResult.Failure).error is RepoError.ValidationFailed)
+        assertEquals(0, repo.getRecordsByDate("2026-11-15").first().size)
+    }
+
+    @Test
+    fun createRecord_invalidDate_returnsValidationFailedAndDoesNotWrite() = runBlocking {
+        val result = repo.createRecord(record(date = "2026-02-30"))
+        assertTrue(result is RepoResult.Failure)
+        assertTrue((result as RepoResult.Failure).error is RepoError.ValidationFailed)
+        assertEquals(0, repo.getRecordsByDate("2026-02-30").first().size)
+    }
+
+    @Test
+    fun createRecord_contentWithSpaces_savesTrimmed() = runBlocking {
+        val result = repo.createRecord(record(content = "  Kotlin 学习  "))
+        assertTrue(result is RepoResult.Success)
+        val id = (result as RepoResult.Success).data.toInt()
+        val got = repo.getRecordById(id) as RepoResult.Success
+        assertEquals("Kotlin 学习", got.data.content)
+    }
+
+    @Test
+    fun updateRecord_invalidContent_returnsValidationFailedAndKeepsOriginal() = runBlocking {
+        val id = (repo.createRecord(record(content = "原内容")) as RepoResult.Success).data.toInt()
+        val result = repo.updateRecord(record(content = "  ").copy(id = id))
+        assertTrue(result is RepoResult.Failure)
+        assertTrue((result as RepoResult.Failure).error is RepoError.ValidationFailed)
+        val kept = repo.getRecordById(id) as RepoResult.Success
+        assertEquals("原内容", kept.data.content)
     }
 }

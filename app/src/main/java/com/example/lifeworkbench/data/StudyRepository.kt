@@ -6,9 +6,10 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.CancellationException
 
 /**
- * 学习记录数据访问统一入口（V1.1 阶段 3.0）。
+ * 学习记录数据访问统一入口（V1.1 阶段 3.0；3.1 接入 StudyValidator）。
  * UI 与 ViewModel 不直接操作 DAO，一律走 Repository。
- * 3.0 不做业务校验（StudyValidator 在 3.1 建立）；写操作只负责落库与错误处理。
+ * 创建/更新前先跑 [StudyValidator]，校验不通过不写入数据库；
+ * 内容先去首尾空格再校验，保存的也是去空格后的内容（与 TaskRepository 的标题处理一致）。
  * 更新/删除按实际影响行数判定：> 0 成功，= 0 返回 NotFound。
  * 异常处理原则：CancellationException 必须原样向上抛出（不得包装为数据库错误）；
  * 普通异常转为 Failure(Database)；不吞异常。
@@ -16,10 +17,15 @@ import kotlinx.coroutines.CancellationException
  */
 class StudyRepository(private val dao: StudyRecordDao) {
 
-    /** 创建学习记录，返回新记录的行 ID。 */
+    /** 创建学习记录：先 trim 内容，再校验，通过后保存 trim 后的内容，返回新记录的行 ID。 */
     suspend fun createRecord(record: StudyRecordEntity): RepoResult<Long> {
+        val normalized = record.copy(content = record.content.trim())
+        val errors = StudyValidator.validate(normalized)
+        if (errors.isNotEmpty()) {
+            return RepoResult.Failure(RepoError.ValidationFailed(errors.map { it.message }))
+        }
         return try {
-            RepoResult.Success(dao.insertRecord(record))
+            RepoResult.Success(dao.insertRecord(normalized))
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
@@ -47,17 +53,24 @@ class StudyRepository(private val dao: StudyRecordDao) {
 
     /**
      * 更新学习记录：先读原记录——不存在返回 NotFound；
+     * 再 trim 内容并按新建同样校验，不通过不写入；
      * 写入后按实际影响行数判定：> 0 成功，= 0 返回 NotFound。
      */
     suspend fun updateRecord(record: StudyRecordEntity): RepoResult<Unit> {
+        val normalized = record.copy(content = record.content.trim())
         return try {
-            val existing = dao.getRecordById(record.id)
+            val existing = dao.getRecordById(normalized.id)
             if (existing == null) {
-                RepoResult.Failure(RepoError.NotFound(record.id))
+                RepoResult.Failure(RepoError.NotFound(normalized.id))
             } else {
-                val rows = dao.updateRecord(record)
-                if (rows > 0) RepoResult.Success(Unit)
-                else RepoResult.Failure(RepoError.NotFound(record.id))
+                val errors = StudyValidator.validate(normalized)
+                if (errors.isNotEmpty()) {
+                    RepoResult.Failure(RepoError.ValidationFailed(errors.map { it.message }))
+                } else {
+                    val rows = dao.updateRecord(normalized)
+                    if (rows > 0) RepoResult.Success(Unit)
+                    else RepoResult.Failure(RepoError.NotFound(normalized.id))
+                }
             }
         } catch (e: CancellationException) {
             throw e

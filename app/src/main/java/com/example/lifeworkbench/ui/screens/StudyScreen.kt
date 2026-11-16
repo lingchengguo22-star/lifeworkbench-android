@@ -110,24 +110,27 @@ fun StudyScreen() {
             Spacer(modifier = Modifier.height(8.dp))
         }
 
-        // 记录列表：用 key(日期, 历史开关）包裹，切换视图/日期时整列重建，
-        // 保证旧记录节点（含语义节点）被彻底销毁，而非在 LazyColumn 内复用/滞留。
-        key(selectedDate, showHistory) {
-            if (records.isEmpty()) {
-                Box(modifier = Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
-                    Text("暂无学习记录", style = MaterialTheme.typography.bodyLarge)
-                }
-            } else {
-                LazyColumn(modifier = Modifier.weight(1f).fillMaxWidth()) {
-                    items(records, key = { it.id }) { record ->
-                        StudyRecordItem(
-                            record = record,
-                            showDate = showHistory,
-                            onEdit = { editingRecord = record; showForm = true },
-                            onDelete = { deleteTarget = record }
-                        )
-                    }
-                }
+        // 记录列表：与今日计划页同一做法——按日期视图用 key(selectedDate) 包裹，
+        // 日期切换时整列重建，旧记录语义节点彻底销毁；历史视图用固定 key("history")。
+        // （之前 key(selectedDate, showHistory) 双键在 CI 第 140 次仍让旧节点滞留，
+        // 改回与已验证的今日计划页完全一致的单键结构。）
+        if (showHistory) {
+            key("history") {
+                StudyRecordList(
+                    records = records,
+                    showDate = true,
+                    onEdit = { editingRecord = it; showForm = true },
+                    onDelete = { deleteTarget = it }
+                )
+            }
+        } else {
+            key(selectedDate) {
+                StudyRecordList(
+                    records = records,
+                    showDate = false,
+                    onEdit = { editingRecord = it; showForm = true },
+                    onDelete = { deleteTarget = it }
+                )
             }
         }
 
@@ -182,6 +185,31 @@ fun StudyScreen() {
                 ) { Text("取消") }
             }
         )
+    }
+}
+
+@Composable
+private fun ColumnScope.StudyRecordList(
+    records: List<StudyRecordEntity>,
+    showDate: Boolean,
+    onEdit: (StudyRecordEntity) -> Unit,
+    onDelete: (StudyRecordEntity) -> Unit
+) {
+    if (records.isEmpty()) {
+        Box(modifier = Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
+            Text("暂无学习记录", style = MaterialTheme.typography.bodyLarge)
+        }
+    } else {
+        LazyColumn(modifier = Modifier.weight(1f).fillMaxWidth()) {
+            items(records, key = { it.id }) { record ->
+                StudyRecordItem(
+                    record = record,
+                    showDate = showDate,
+                    onEdit = { onEdit(record) },
+                    onDelete = { onDelete(record) }
+                )
+            }
+        }
     }
 }
 

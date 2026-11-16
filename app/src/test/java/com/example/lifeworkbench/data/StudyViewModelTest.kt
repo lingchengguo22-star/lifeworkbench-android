@@ -141,13 +141,15 @@ class StudyViewModelTest {
         repo.createRecord(
             StudyRecordEntity(date = "2026-11-14", durationMinutes = 30, content = "昨天", knowledgePointId = null)
         )
-        val todayRecords = viewModel.records.first { it.size == 1 }
+        // 切日期后用内容感知断言等待新发射：StateFlow 的当前值仍是旧日期的记录（同样 1 条），
+        // 只按 size 等会立刻取到旧值（与 TodayPlanViewModelTest.selectDate_updatesList 同一做法）
+        val todayRecords = viewModel.records.first { it.size == 1 && it[0].content == "今天" }
         assertEquals("今天", todayRecords[0].content)
         viewModel.previousDay()
-        val yesterdayRecords = viewModel.records.first { it.size == 1 }
+        val yesterdayRecords = viewModel.records.first { it.size == 1 && it[0].content == "昨天" }
         assertEquals("昨天", yesterdayRecords[0].content)
         viewModel.goToToday()
-        val backRecords = viewModel.records.first { it.size == 1 }
+        val backRecords = viewModel.records.first { it.size == 1 && it[0].content == "今天" }
         assertEquals("今天", backRecords[0].content)
     }
 
